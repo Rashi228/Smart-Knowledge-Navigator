@@ -37,8 +37,11 @@ class DirectMemoryCache:
         self._save()
         logger.info(f"Stored {filename} entirely in DirectMemoryCache (Bypassing Vector DB).")
 
-    def get_all_context(self) -> list[str]:
-        return [f"Content from {name}:\n{content}" for name, content in self.cache.items()]
+    def get_context(self, file_filter: list[str] = None) -> list[dict]:
+        """Returns context from the cache, optionally filtered by filename"""
+        if file_filter:
+            return [{"source": name, "content": content} for name, content in self.cache.items() if name in file_filter]
+        return [{"source": name, "content": content} for name, content in self.cache.items()]
 
     def delete_file(self, filename: str):
         if filename in self.cache:

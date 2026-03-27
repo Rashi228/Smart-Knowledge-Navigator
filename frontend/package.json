@@ -10,11 +10,16 @@
   },
   "dependencies": {
     "clsx": "^2.1.0",
+    "d3-force": "^3.0.0",
     "framer-motion": "^11.5.0",
     "lucide-react": "^0.360.0",
+    "mermaid": "^11.13.0",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
+    "react-force-graph-2d": "^1.29.1",
+    "react-markdown": "^10.1.0",
     "react-router-dom": "^6.30.3",
+    "remark-gfm": "^4.0.1",
     "tailwind-merge": "^2.2.0"
   },
   "devDependencies": {

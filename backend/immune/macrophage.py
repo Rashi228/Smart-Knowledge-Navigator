@@ -20,7 +20,8 @@ class ImmunitySystem:
     def scan_for_conflicts(self, new_text: str, filename: str):
         logger.info(f"🦠 Immune System [Macrophage Agent]: Activating scan on {filename}...")
         
-        existing_knowledge = "\n".join(memory_cache.get_all_context())
+        ctx = memory_cache.get_context()
+        existing_knowledge = "\n\n".join([f"Source: {c['source']}\n{c['content']}" for c in ctx])
         
         # We don't scan if there is nothing to contradict against
         if not existing_knowledge or existing_knowledge.strip() == "":

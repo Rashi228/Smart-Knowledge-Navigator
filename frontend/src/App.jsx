@@ -3,16 +3,18 @@ import Sidebar from './components/Sidebar';
 import ChatInterface from './components/ChatInterface';
 import InsightPanel from './components/InsightPanel';
 import SourceViewerModal from './components/SourceViewerModal';
+import SourceSelectionModal from './components/SourceSelectionModal';
 import Login from './components/Auth/Login';
 import Register from './components/Auth/Register';
+import GraphVisualizer from './components/GraphVisualizer';
 
 export default function App() {
   const [chats, setChats] = useState(() => {
     const saved = localStorage.getItem('hyperrag_chats');
     if (saved) {
-      try { return JSON.parse(saved); } catch (e) {}
+      try { return JSON.parse(saved).map(c => ({...c, selectedFiles: c.selectedFiles || []})); } catch (e) {}
     }
-    return [{ id: Date.now(), title: 'New Chat', messages: [] }];
+    return [{ id: Date.now(), title: 'New Chat', messages: [], selectedFiles: [] }];
   });
   
   const [currentChatId, setCurrentChatId] = useState(() => {
@@ -50,8 +52,14 @@ export default function App() {
 
   const createNewChat = () => {
     const newId = Date.now();
-    setChats(prev => [{ id: newId, title: 'New Chat', messages: [], insights: null }, ...prev]);
+    setChats(prev => [{ id: newId, title: 'New Chat', messages: [], insights: null, selectedFiles: [] }, ...prev]);
     setCurrentChatId(newId);
+    setShowSourceSelection(true); // Open selection immediately
+  };
+
+  const handleUpdateChatFiles = (chatId, files) => {
+    setChats(prev => prev.map(c => c.id === chatId ? { ...c, selectedFiles: files } : c));
+    setShowSourceSelection(false);
   };
 
   const handleRenameChat = (id, newTitle) => {
@@ -89,6 +97,8 @@ export default function App() {
   // Auth state
   const [token, setToken] = useState(localStorage.getItem('hyperrag_token') || null);
   const [showRegister, setShowRegister] = useState(false);
+  const [showGraph, setShowGraph] = useState(false);
+  const [showSourceSelection, setShowSourceSelection] = useState(false);
 
   useEffect(() => {
     localStorage.setItem('hyperrag_files', JSON.stringify(uploadedFiles));
@@ -129,8 +139,7 @@ export default function App() {
   const handleLogout = () => {
     localStorage.removeItem('hyperrag_token');
     setToken(null);
-    setChats([{ id: Date.now(), title: 'New Chat', messages: [] }]);
-    setCurrentInsights(null);
+    setChats([{ id: Date.now(), title: 'New Chat', messages: [], selectedFiles: [] }]);
     setUploadedFiles([]);
   };
 
@@ -249,7 +258,11 @@ export default function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ query: input, mode: mode || "Private" }),
+        body: JSON.stringify({ 
+          query: input, 
+          mode: mode || "Private",
+          files: activeChat.selectedFiles
+        }),
         signal: abortControllerRef.current.signal
       });
 
@@ -267,7 +280,7 @@ export default function App() {
         id: loadingId,
         role: 'assistant',
         content: data.answer,
-        citations: data.sources.map(src => ({ text: src, snippet: `Excerpt from ${src} showing relevance.` })),
+        citations: data.citations,
         steps: data.steps
       };
       
@@ -346,6 +359,8 @@ export default function App() {
             onNewChat={createNewChat}
             onRenameChat={handleRenameChat}
             onDeleteChat={handleDeleteChat}
+            onShowGraph={() => setShowGraph(true)}
+            onOpenSourceSelection={() => setShowSourceSelection(true)}
             onClose={() => setIsSidebarOpen(false)}
           />
         </div>
@@ -385,6 +400,18 @@ export default function App() {
           onClose={() => setActiveSource(null)} 
         />
       )}
+
+      {showGraph && (
+        <GraphVisualizer onClose={() => setShowGraph(false)} />
+      )}
+
+      <SourceSelectionModal 
+        isOpen={showSourceSelection}
+        onClose={() => setShowSourceSelection(false)}
+        uploadedFiles={uploadedFiles}
+        initialSelection={activeChat?.selectedFiles || []}
+        onConfirm={(files) => handleUpdateChatFiles(currentChatId, files)}
+      />
     </div>
   );
 }

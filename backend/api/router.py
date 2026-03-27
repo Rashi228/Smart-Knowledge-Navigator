@@ -1,5 +1,6 @@
 import logging
 import time
+import re
 from fastapi import APIRouter, File, UploadFile, HTTPException, Depends, BackgroundTasks
 from typing import List
 from .schemas import QueryRequest, QueryResponse, StatusResponse
@@ -14,6 +15,24 @@ from immune.macrophage import immune_system
 from core.confluence import confluence_sync
 
 logger = logging.getLogger(__name__)
+def clean_spaced_text(text: str) -> str:
+    """
+    Detects and fixes 'spaced-out' text (e.g. 'C o n t a i n e r i z a t i o n') 
+    which is a common artifact in certain PDF extractions.
+    """
+    if not text:
+        return text
+    # Regex for character followed by exactly one space, repeated at least 5 times
+    # This avoids collapsing actual words but catches the spaced-out artifacts
+    pattern = r'(?:[A-Za-z]\s){5,}'
+    
+    def replacer(match):
+        # Remove the extra spaces from the matched spaced-out block
+        return match.group(0).replace(" ", "")
+
+    cleaned = re.sub(pattern, replacer, text)
+    return cleaned
+
 api_router = APIRouter()
 
 def process_upload_in_background(filename: str, text_content: str, user_id: int):
@@ -71,8 +90,9 @@ async def upload_document(
                 from pypdf import PdfReader
                 reader = PdfReader(io.BytesIO(content))
                 pages = [page.extract_text() or "" for page in reader.pages]
-                text_content = "\n\n".join(p for p in pages if p.strip())
-                logger.info(f"Extracted {len(reader.pages)} pages from PDF '{filename}'")
+                raw_text = "\n\n".join(p for p in pages if p.strip())
+                text_content = clean_spaced_text(raw_text)
+                logger.info(f"Extracted and Sanitized {len(reader.pages)} pages from PDF '{filename}'")
             except Exception as e:
                 logger.error(f"PDF extraction failed: {e}")
                 raise HTTPException(status_code=422, detail=f"Could not read PDF file: {e}")
@@ -132,22 +152,24 @@ async def query_knowledge(
         
         # Trigger Multi-Agent LangGraph Workflow directly
         start_time = time.time()
-        agent_raw_result = process_query_workflow(request.query, mode=request.mode)
+        agent_raw_result = process_query_workflow(request.query, mode=request.mode, files=request.files)
         end_time = time.time()
         
         logger.info(f"LangGraph execution completed in {round(end_time-start_time, 2)}s.")
         
         # Extract metadata from state
-        sources = list(set(agent_raw_result.get("vector_context", [])))
-        if not sources or sources == ["No semantic data found in Qdrant."]:
+        citations = agent_raw_result.get("citations", [])
+        sources = list(set([c["source"] for c in citations]))
+        if not sources:
             sources = ["Knowledge Graph"]
             
         return QueryResponse(
             answer=agent_raw_result.get("final_answer", "No answer could be generated."),
-            confidence_score=agent_raw_result.get("confidence", 0.0),
+            confidence_score=int(agent_raw_result.get("confidence", 0.0)),
             confidence_level="High" if agent_raw_result.get("confidence", 0) > 85 else "Medium",
             strategy=agent_raw_result.get("strategy", "Strict Hybrid Validation"),
             sources=sources,
+            citations=[{"source": c["source"], "snippet": c["content"][:400], "url": c.get("url")} for c in agent_raw_result.get("citations", [])],
             steps=agent_raw_result.get("steps_taken", [])
         )
     except Exception as e:
@@ -190,6 +212,11 @@ async def get_immune_status(current_user: dict = Depends(get_current_user)):
         "reports": conflicts
     }
 
+@api_router.get("/graph/data")
+async def get_graph_data(current_user: dict = Depends(get_current_user)):
+    """Exports full graph data for the 2D visualizer"""
+    return graph_db.get_graph_data()
+
 @api_router.get("/suggestions")
 async def get_dynamic_suggestions(current_user: dict = Depends(get_current_user)):
     """Fetches random graph entities and dynamically templates them into suggested questions"""
@@ -210,7 +237,7 @@ async def get_dynamic_suggestions(current_user: dict = Depends(get_current_user)
         "How is '{0}' related to other concepts?"
     ]
     
-    suggestions = [tmpl.format(entity) for entity, tmpl in zip(chosen, [random.choice(templates) for _ in chosen])]
+    suggestions = [tmpl.format(entity) for entity, tmpl in zip(entities, [random.choice(templates) for _ in entities])]
     return {"suggestions": suggestions}
 
 @api_router.post("/confluence/sync", response_model=StatusResponse)

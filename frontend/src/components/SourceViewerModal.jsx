@@ -12,7 +12,14 @@ export default function SourceViewerModal({ source, onClose }) {
           <div className="flex items-center space-x-2">
             <FileText className="w-5 h-5 text-indigo-500" />
             <h3 className="text-base font-semibold text-indigo-950 tracking-tight">
-              {source.text}
+              {source.url ? (
+                <a href={source.url} target="_blank" rel="noopener noreferrer" className="hover:text-indigo-600 hover:underline flex items-center decoration-indigo-300">
+                  {source.source}
+                  <ArrowUpRight className="w-3.5 h-3.5 ml-1.5 text-indigo-400" />
+                </a>
+              ) : (
+                source.source
+              )}
             </h3>
           </div>
           <button 
@@ -28,9 +35,16 @@ export default function SourceViewerModal({ source, onClose }) {
           <div className="mb-8">
             <div className="flex items-center justify-between mb-3">
               <h4 className="text-xs font-semibold text-indigo-400 uppercase tracking-widest">Exact Snippet Used</h4>
-              <button className="flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors">
-                View full document <ArrowUpRight className="w-3 h-3 ml-1" />
-              </button>
+              {source.url && (
+                <a 
+                  href={source.url} 
+                  target="_blank" 
+                  rel="noopener noreferrer"
+                  className="flex items-center text-xs text-indigo-600 hover:text-indigo-800 font-medium transition-colors"
+                >
+                  View original source <ArrowUpRight className="w-3 h-3 ml-1" />
+                </a>
+              )}
             </div>
             
             <figure className="bg-white border text-slate-700 border-indigo-100 p-5 rounded-2xl shadow-sm relative overflow-hidden">

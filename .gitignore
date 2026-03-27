@@ -31,3 +31,8 @@ desktop.ini
 # --- Playwright ---
 backend/.auth/
 backend/pw-browsers/
+
+
+backend/qdrant_data/
+backend/qdrant_data/
+backend/qdrant_data/*

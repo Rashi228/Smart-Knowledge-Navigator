@@ -54,14 +54,29 @@ class VectorDBClient:
         )
         logger.info(f"Upserted {len(vectors)} chunk vectors into {self.collection_name}")
 
-    def search(self, query_vector: List[float], limit: int = 5) -> List[Any]:
-        """Semantic search over vectors"""
+    def search(self, query_vector: List[float], limit: int = 5, file_filter: List[str] = None) -> List[Any]:
+        """Semantic search over vectors with optional filename filtering"""
         if not self.client: return []
         
-        logger.info(f"Searching for top {limit} matches in vector DB")
+        query_filter = None
+        if file_filter:
+            from qdrant_client.http import models as rest
+            query_filter = rest.Filter(
+                must=[
+                    rest.FieldCondition(
+                        key="file_name",
+                        match=rest.MatchAny(any=file_filter)
+                    )
+                ]
+            )
+            logger.info(f"Searching with file filter: {file_filter}")
+        else:
+            logger.info(f"Searching for top {limit} matches in vector DB (unfiltered)")
+
         results = self.client.query_points(
             collection_name=self.collection_name,
             query=query_vector,
+            query_filter=query_filter,
             limit=limit
         )
         return results.points if hasattr(results, 'points') else results

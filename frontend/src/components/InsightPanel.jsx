@@ -57,7 +57,7 @@ export default function InsightPanel({ insights }) {
           <ul className="space-y-2 text-sm text-slate-600">
             {insights.sources.map((src, i) => (
               <li key={i} className="flex flex-col">
-                <span className="flex items-center font-medium">
+                <span className="flex items-center font-medium break-all">
                   <FileSearch className="w-4 h-4 text-indigo-300 mr-2 flex-shrink-0" />
                   {src}
                 </span>

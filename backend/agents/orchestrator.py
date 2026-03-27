@@ -18,16 +18,18 @@ class AgentState(TypedDict):
     query: str
     original_query: str
     mode: str  # "Private", "Online", or "Hybrid"
-    vector_context: List[str]
-    graph_context: List[str]
-    memory_context: List[str]
-    web_context: List[str]      # Results from DuckDuckGo web search
+    vector_context: List[dict] # [{"source": str, "content": str}]
+    graph_context: List[dict]  # [{"source": str, "content": str}]
+    memory_context: List[dict] # [{"source": str, "content": str}]
+    web_context: List[dict]    # [{"source": str, "content": str}]
     fused_context: str
+    citations: List[dict]      # Final list of sources used
     final_answer: str
     confidence: float
     strategy: str
     steps_taken: List[dict]
     retry_count: int
+    files: List[str]  # Restricted knowledge scope for this chat
 
 def run_llm(system_prompt: str, user_prompt: str) -> str:
     """Helper to query the Groq Cloud AI (Llama 3 70B) for 10x speed"""
@@ -74,16 +76,20 @@ def adaptive_retrieval_node(state: AgentState):
     logger.info("Agent [AdaptiveRetriever]: Selecting search domains")
     state["steps_taken"].append({"step": "Adaptive Selection & Retrieval", "status": "Done"})
     
-    # 1. Fetch Direct Memory (Small files that bypassed RAG)
-    state["memory_context"] = memory_cache.get_all_context()
+    # 1. Fetch Direct Memory (Small files that bypassed RAG, filtered by chat selection)
+    state["memory_context"] = memory_cache.get_context(state.get("files"))
     
     # 2. Qdrant Vector Search (only in Private/Hybrid)
     if state.get("mode", "Private") in ("Private", "Hybrid"):
         try:
             embedder = LocalEmbedder.get_embedder()
             query_vector = embedder.embed_query(state["query"])
-            results = vector_db.search(query_vector, limit=3)
-            state["vector_context"] = [r.payload.get("text", "") for r in results] if results else []
+            # Pass file filter to vector search for chat isolation
+            results = vector_db.search(query_vector, limit=10, file_filter=state.get("files"))
+            state["vector_context"] = [
+                {"source": r.payload.get("file_name", "Unknown"), "content": r.payload.get("text", "")} 
+                for r in results
+            ] if results else []
         except Exception as e:
             logger.warning(f"Vector search failed: {e}")
             state["vector_context"] = []
@@ -131,17 +137,14 @@ def web_search_node(state: AgentState):
     state["steps_taken"].append({"step": "Live Web Intelligence Fetch", "status": "Done"})
     try:
         from duckduckgo_search import DDGS
+        from urllib.parse import urlparse
         with DDGS() as ddgs:
-            results = list(ddgs.text(state["query"], max_results=5))
-        snippets = []
-        for r in results:
-            title = r.get("title", "")
-            body = r.get("body", "")
-            href = r.get("href", "")
-            if body:
-                snippets.append(f"[Web: {title}]\n{body}\n({href})")
-        state["web_context"] = snippets
-        logger.info(f"WebSearch: Fetched {len(snippets)} live results.")
+            results = list(ddgs.text(state["query"], max_results=3))
+            state["web_context"] = [
+                {"source": f"Web: {urlparse(r['href']).netloc}", "content": r["body"], "url": r["href"]} 
+                for r in results
+            ]
+        logger.info(f"WebSearch: Fetched {len(state['web_context'])} live results.")
     except Exception as e:
         logger.error(f"Web search failed: {e}")
         state["web_context"] = []
@@ -152,16 +155,25 @@ def memory_builder_node(state: AgentState):
     logger.info("Agent [MemoryBuilder]: Fusing distinct records")
     state["steps_taken"].append({"step": "Context Fusion (MemoryBuilder)", "status": "Done"})
     
-    all_context = (
+    all_records = (
         state["vector_context"] +
         state["graph_context"] +
         state["memory_context"] +
         state.get("web_context", [])
     )
-    unique_context = list(dict.fromkeys(all_context))  # Preserve order, deduplicate
     
-    if unique_context:
-        state["fused_context"] = "\n\n---\n\n".join(unique_context)
+    # Deduplicate based on content
+    seen_content = set()
+    unique_records = []
+    for r in all_records:
+        if r["content"] not in seen_content:
+            seen_content.add(r["content"])
+            unique_records.append(r)
+    
+    state["citations"] = unique_records
+    
+    if unique_records:
+        state["fused_context"] = "\n\n---\n\n".join([f"Source: {r['source']}\n{r['content']}" for r in unique_records])
     else:
         state["fused_context"] = "SYSTEM: No exact contexts found. Use general knowledge carefully."
         
@@ -175,8 +187,20 @@ def synthesis_node(state: AgentState):
     # Cap context to 3000 chars to keep LLM prompt short and fast on CPU 
     context = state['fused_context'][:3000] if state['fused_context'] else ""
     
-    system = "You are HyperRAG-X, a helpful knowledge assistant. Use the provided context to answer the user's question. Be concise and structured. If context is limited, answer from general knowledge."
-    user = f"Context:\n{context}\n\nQuestion: {state['original_query']}"
+    system = (
+        "You are HyperRAG-X, an elite enterprise knowledge assistant. "
+        "Your goal is to provide a structured, professional, and VISUAL answer based ONLY on the provided context.\n\n"
+        "STRICT FORMATTING RULES:\n"
+        "1. Structure your answer using Markdown (bullet points, bold text).\n"
+        "2. FOR COMPARISONS: You MUST use Markdown Tables to highlight differences.\n"
+        "3. FOR PROCESSES/FLOWS: Use Markdown Tables or nested bullet points to explain visually. DO NOT use Mermaid diagrams.\n"
+        "4. DO NOT REPEAT YOURSELF. If you have already stated a fact, move to the next one.\n"
+        "5. NEVER use conversational fillers like 'I found the information' or 'You already know this'.\n"
+        "6. If multiple questions are asked, answer them as a numbered list.\n"
+        "7. If you cannot find the answer in context, say 'Information not found in internal documents' and suggest a broader search.\n"
+        "8. PROACTIVE HELPFULNESS: At the end of your response, naturally suggest 1-2 helpful follow-up tips or ask if the user needs more details on a specific related topic (e.g., 'Would you like some tips on preparing for interview rounds mentioned in these guidelines?')."
+    )
+    user = f"CONTEXT:\n{context}\n\nUSER QUERY: {state['original_query']}\n\nFINAL RESPONSE (Concise & Structured):"
     
     ans = run_llm(system, user)
     state["final_answer"] = ans
@@ -242,8 +266,8 @@ workflow.add_conditional_edges("verifier", should_loop, {"planner": "planner", E
 
 orchestrator_target = workflow.compile()
 
-def process_query_workflow(query: str, mode: str = "Private"):
-    """Triggers the multi-agent pipeline with the chosen mode."""
+def process_query_workflow(query: str, mode: str = "Private", files: List[str] = None):
+    """Triggers the multi-agent pipeline with the chosen mode and file filter."""
     initial_state = {
         "query": query,
         "original_query": "",
@@ -253,11 +277,13 @@ def process_query_workflow(query: str, mode: str = "Private"):
         "memory_context": [],
         "web_context": [],
         "fused_context": "",
+        "citations": [],
         "final_answer": "",
         "confidence": 0.0,
         "strategy": "",
         "steps_taken": [],
-        "retry_count": 0
+        "retry_count": 0,
+        "files": files or []
     }
     final_output = orchestrator_target.invoke(initial_state)
     return final_output

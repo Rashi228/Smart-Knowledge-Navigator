@@ -1,7 +1,7 @@
 import React, { useRef, useState, useEffect } from 'react';
-import { Target, CheckCircle, ShieldAlert, FileSearch, ArrowUpRight, ListOrdered, ChevronRight, ChevronDown, Clock, FileText, UploadCloud, Link as LinkIcon, Download, LogOut, Settings, X, User as UserIcon, ShieldCheck, PanelLeftClose, Trash2, Plus, MoreHorizontal, Edit2, Share, Archive, Check } from 'lucide-react';
+import { Target, CheckCircle, ShieldAlert, FileSearch, ArrowUpRight, ListOrdered, ChevronRight, ChevronDown, Clock, FileText, UploadCloud, Link as LinkIcon, Download, LogOut, Settings, X, User as UserIcon, ShieldCheck, PanelLeftClose, Trash2, Plus, MoreHorizontal, Edit2, Share, Archive, Check, Share2, Filter } from 'lucide-react';
 
-export default function Sidebar({ onLogout, onUpload, onConfluenceSync, onDeleteFile, isUploading, uploadedFiles, chats, currentChatId, onSelectChat, onNewChat, onRenameChat, onDeleteChat, onClose }) {
+export default function Sidebar({ onLogout, onUpload, onConfluenceSync, onDeleteFile, isUploading, uploadedFiles, chats, currentChatId, onSelectChat, onNewChat, onRenameChat, onDeleteChat, onClose, onShowGraph, onOpenSourceSelection }) {
   const fileInputRef = useRef(null);
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
@@ -110,6 +110,15 @@ export default function Sidebar({ onLogout, onUpload, onConfluenceSync, onDelete
               <LinkIcon className="w-4 h-4 text-indigo-400" />
               <span>Add Confluence Link</span>
             </button>
+            <div className="h-px bg-slate-800/50 my-2"></div>
+            <button 
+              onClick={onShowGraph}
+              className="w-full flex items-center justify-center space-x-2 bg-gradient-to-br from-slate-800 to-indigo-900/20 hover:from-slate-700 hover:to-indigo-800/30 text-indigo-300 border border-indigo-500/20 rounded-lg py-2.5 px-3 text-sm font-bold transition-all cursor-pointer group"
+            >
+              <Share2 className="w-4 h-4 group-hover:scale-110 transition-transform" />
+              <span>Knowledge Graph</span>
+              <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse ml-auto"></div>
+            </button>
           </div>
 
           <div className="mt-5 space-y-2 overflow-y-auto max-h-[25vh] scrollbar-thin scrollbar-thumb-slate-700 pr-1">
@@ -185,9 +194,14 @@ export default function Sidebar({ onLogout, onUpload, onConfluenceSync, onDelete
                         {chat.title}
                       </p>
                       {chat.id === currentChatId && (
-                        <div className="flex items-center space-x-1.5 mt-1.5">
-                          <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.5)]"></div>
-                          <span className="text-[10px] text-slate-400 font-medium">Session Active</span>
+                        <div className="flex items-center justify-between mt-1.5">
+                          <div className="flex items-center space-x-1.5">
+                            <div className="w-1.5 h-1.5 rounded-full bg-emerald-400 shadow-[0_0_5px_rgba(52,211,153,0.5)]"></div>
+                            <span className="text-[10px] text-slate-400 font-medium">Session Active</span>
+                          </div>
+                          <span className="text-[9px] bg-slate-700 text-indigo-300 px-1.5 py-0.5 rounded font-bold uppercase tracking-tighter">
+                            {chat.selectedFiles?.length || 0} Sources
+                          </span>
                         </div>
                       )}
                     </div>
@@ -207,6 +221,12 @@ export default function Sidebar({ onLogout, onUpload, onConfluenceSync, onDelete
                 {/* Floating Options Menu */}
                 {openDropdownId === chat.id && (
                   <div className="chat-options-menu absolute z-50 right-2 top-10 w-44 bg-slate-800 border border-slate-700 rounded-xl shadow-2xl py-1.5 animate-in fade-in zoom-in duration-150">
+                    <button 
+                      onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); onOpenSourceSelection(); }}
+                      className="w-full flex items-center px-4 py-2 text-xs font-medium text-indigo-300 hover:bg-slate-700 hover:text-white"
+                    >
+                      <Filter className="w-3.5 h-3.5 mr-2" /> Change Knowledge
+                    </button>
                     <button 
                       onClick={(e) => { e.stopPropagation(); setOpenDropdownId(null); }}
                       className="w-full flex items-center px-4 py-2 text-xs font-medium text-slate-300 hover:bg-slate-700 hover:text-white"
