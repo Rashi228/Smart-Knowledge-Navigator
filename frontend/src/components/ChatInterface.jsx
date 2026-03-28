@@ -88,7 +88,7 @@ function LiveAgentLoader({ mode = 'Private' }) {
   );
 }
 
-export default function ChatInterface({ messages, setMessages, setActiveMessageId, onSourceClick, isSidebarOpen, suggestions, onSendMessage, isGenerating, onStopGenerating }) {
+export default function ChatInterface({ messages, setMessages, setActiveMessageId, onSourceClick, isSidebarOpen, suggestions, onSendMessage, isGenerating, onStopGenerating, onOpenSourceSelection, chats, currentChatId }) {
   const [input, setInput] = useState('');
   const [queryMode, setQueryMode] = useState('Private');
   const bottomRef = useRef(null);

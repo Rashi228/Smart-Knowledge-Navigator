@@ -113,6 +113,10 @@ export default function App() {
       const res = await fetch('http://localhost:8000/api/v1/suggestions', {
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (res.status === 401) {
+        handleLogout();
+        return;
+      }
       if (res.ok) {
         const data = await res.json();
         setSuggestions(data.suggestions || []);
@@ -154,6 +158,10 @@ export default function App() {
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
+      if (response.status === 401) {
+        handleLogout();
+        return;
+      }
       if (!response.ok) throw new Error("Upload Failed");
       const data = await response.json();
       setUploadedFiles(prev => [...prev, file.name]);
@@ -179,6 +187,10 @@ export default function App() {
         body: JSON.stringify({ url })
       });
       
+      if (response.status === 401) {
+        handleLogout();
+        return;
+      }
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.detail || "Sync Failed");
@@ -206,6 +218,10 @@ export default function App() {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
+      if (response.status === 401) {
+        handleLogout();
+        return;
+      }
       if (!response.ok) throw new Error("Delete Failed");
       
       setUploadedFiles(prev => prev.filter(f => f !== filename));
@@ -389,6 +405,9 @@ export default function App() {
             onSendMessage={handleSendMessage}
             isGenerating={isGenerating}
             onStopGenerating={handleStopGenerating}
+            onOpenSourceSelection={() => setShowSourceSelection(true)}
+            chats={chats}
+            currentChatId={currentChatId}
           />
       </div>
 

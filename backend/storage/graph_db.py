@@ -41,30 +41,37 @@ class GraphDBClient:
         self._save() # Auto-save to disk
         logger.info(f"Added Graph Edge: {entity1} -[{relationship}]-> {entity2}")
 
-    def get_context_for_entity(self, entity: str, depth: int = 2) -> List[str]:
-        """Retrieves connections for a specific entity out to a certain depth."""
+    def get_context_for_entity(self, entity: str, depth: int = 2, file_filter: List[str] = None) -> List[Dict]:
+        """Retrieves connections for a specific entity out to a certain depth, filtered by source file."""
         if entity not in self.graph:
             return []
             
         context = []
+        # Orientation="original" means we follow the arrows (Out-edges)
         edges = nx.edge_bfs(self.graph, entity, orientation="original")
         
-        # In a real Neo4j setup, this is cypher: MATCH (a {name: entity})-[r*..2]-(b) RETURN a,r,b
         for edge_count, edge in enumerate(edges):
-            if edge_count >= depth * 5: # simple mock cutoff
+            if edge_count >= depth * 8: # Increased limit for more depth
                 break
             
-            # Defensive unpacking: NetworkX may return (u,v) or (u,v,key)
             src, dst = edge[0], edge[1]
             try:
-                # If key was returned in the tuple
-                key = edge[2] if len(edge) > 2 else list(self.graph[src][dst].keys())[0]
-                rel = self.graph[src][dst][key].get("relation", "connected_to")
-            except (IndexError, KeyError):
-                rel = "connected_to"
+                # MultiDiGraph returns (u,v,key) in edge_bfs
+                key = edge[2] if len(edge) > 2 else 0
+                edge_data = self.graph[src][dst][key]
                 
-            context.append({"source": "Knowledge Graph", "content": f"{src} represents {rel} {dst}"})
-            
+                # Knowledge Gate: Skip if this edge doesn't belong to an allowed file
+                if file_filter and edge_data.get("source") not in file_filter:
+                    continue
+                    
+                rel = edge_data.get("relation", "connected_to")
+                context.append({
+                    "source": f"Graph: {edge_data.get('source', 'System Knowledge')}", 
+                    "content": f"{src} -> {rel} -> {dst}"
+                })
+            except Exception as e:
+                logger.debug(f"Graph traversal detail skip: {e}")
+                
         return context
 
     def get_random_entities(self, limit: int = 3) -> List[str]:

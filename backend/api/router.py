@@ -119,11 +119,15 @@ async def upload_document(
         # Small file: store in memory cache directly (bypass RAG)
         if file_size < 15000:
             memory_cache.store_file(filename, text_content)
+            # Create nodes for graph indexing even if bypassing vector search
+            temp_nodes = [{"text": text_content, "metadata": {"file_name": filename}}]
+            ingestion_pipeline.populate_graph(filename, temp_nodes)
+            
             background_tasks.add_task(immune_system.scan_for_conflicts, text_content, filename)
             return StatusResponse(
                 status="success",
-                message=f"Document '{filename}' saved. Macrophage background scan initiated.",
-                data={"chunks_created": 0, "status": "direct_injection"}
+                message=f"Document '{filename}' saved to Knowledge Graph. Macrophage scan initiated.",
+                data={"chunks_created": 1, "status": "direct_injection"}
             )
 
         # Large file: embed in background

@@ -101,7 +101,7 @@ def adaptive_retrieval_node(state: AgentState):
     g_ctx = []
     for w in keywords:
         if len(w) > 4:  # Quick keyword rule
-            g_ctx.extend(graph_db.get_context_for_entity(w))
+            g_ctx.extend(graph_db.get_context_for_entity(w, file_filter=state.get("files")))
     state["graph_context"] = g_ctx
     
     # Set the strategy string for Frontend UI tracking
