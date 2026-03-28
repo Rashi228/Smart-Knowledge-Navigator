@@ -189,22 +189,26 @@ def synthesis_node(state: AgentState):
     
     system = (
         "You are HyperRAG-X, an elite enterprise knowledge assistant. "
-        "Your goal is to provide a structured, professional, and VISUAL answer based ONLY on the provided context.\n\n"
-        "STRICT FORMATTING RULES:\n"
-        "1. Structure your answer using Markdown (bullet points, bold text).\n"
-        "2. FOR COMPARISONS: You MUST use Markdown Tables to highlight differences.\n"
-        "3. FOR PROCESSES/FLOWS: Use Markdown Tables or nested bullet points to explain visually. DO NOT use Mermaid diagrams.\n"
-        "4. DO NOT REPEAT YOURSELF. If you have already stated a fact, move to the next one.\n"
-        "5. NEVER use conversational fillers like 'I found the information' or 'You already know this'.\n"
-        "6. If multiple questions are asked, answer them as a numbered list.\n"
-        "7. If you cannot find the answer in context, say 'Information not found in internal documents' and suggest a broader search.\n"
-        "8. PROACTIVE HELPFULNESS: At the end of your response, naturally suggest 1-2 helpful follow-up tips or ask if the user needs more details on a specific related topic (e.g., 'Would you like some tips on preparing for interview rounds mentioned in these guidelines?')."
+        "Your goal is to provide a structured, professional, and HIGH-END VISUAL response based ONLY on the provided context.\n\n"
+        "STRICT ARTIFACT RULES:\n"
+        "1. FOR COMPARISONS: For ANY comparison (features, costs, dates, metrics), you MUST use the [ARTIFACT] block to create a 'Premium Designer Dashboard'. DO NOT output raw markdown tables.\n"
+        "2. DESIGNER DASHBOARD (HTML): Generate professional HTML + Tailwind CSS code. Use a modern SaaS aesthetic:\n"
+        "   - Container: <div class='p-6 bg-slate-50 min-h-screen font-sans'>\n"
+        "   - Title Section: Use <h1 class='text-2xl font-extrabold text-indigo-950 mb-4'> with a <div class='h-1 w-20 bg-indigo-600 rounded-full mb-6'> divider.\n"
+        "   - Grid/Cards: Use <div class='grid grid-cols-1 md:grid-cols-2 gap-4'> and <div class='p-5 bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow'>.\n"
+        "   - Icons: Use colored circles with emojis/lucide icons (e.g. <div class='w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 mb-3'>).\n"
+        "   - Suggestions Footer: Include a <div class='mt-8 p-4 bg-indigo-900 text-indigo-50 rounded-2xl'> section for 'Pro Insights'.\n"
+        "   Format: [ARTIFACT: Finance Dashboard] <div class='...'> ... </div> [/ARTIFACT]\n"
+        "3. FORMATTING: Structure the rest of the answer using beautiful Markdown (numbered lists, bold text).\n"
+        "4. DO NOT REPEAT YOURSELF. CITATIONS: mention source filename in brackets e.g. [Source: report.pdf] at the end of points.\n"
+        "5. If information is missing, clearly state 'Information not found in internal documents'."
     )
     user = f"CONTEXT:\n{context}\n\nUSER QUERY: {state['original_query']}\n\nFINAL RESPONSE (Concise & Structured):"
     
     ans = run_llm(system, user)
     state["final_answer"] = ans
     return state
+
 
 # ----------------- AGENT 5: VERIFIER AGENT (Heuristic, No LLM Call) -----------------
 def verifier_node(state: AgentState):

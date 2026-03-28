@@ -216,6 +216,43 @@ async def get_immune_status(current_user: dict = Depends(get_current_user)):
         "reports": conflicts
     }
 
+@api_router.get("/documents")
+async def list_documents(current_user: dict = Depends(get_current_user)):
+    """
+    Returns a combined list of all indexed filenames from MemoryCache + VectorDB.
+    Used by the frontend to restore the file list after login.
+    """
+    try:
+        # Files in memory cache (small files)
+        memory_files = list(memory_cache.cache.keys())
+
+        # Files in vector DB (large files)
+        vector_files = []
+        if vector_db.client:
+            try:
+                results = vector_db.client.scroll(
+                    collection_name=vector_db.collection_name,
+                    limit=500,
+                    with_payload=True,
+                    with_vectors=False,
+                )
+                points = results[0] if results else []
+                seen = set()
+                for pt in points:
+                    fname = pt.payload.get("file_name")
+                    if fname and fname not in seen:
+                        seen.add(fname)
+                        vector_files.append(fname)
+            except Exception as e:
+                logger.warning(f"Could not scroll vector DB for file list: {e}")
+
+        # Combine and deduplicate, preserving order
+        all_files = list(dict.fromkeys(memory_files + vector_files))
+        return {"files": all_files}
+    except Exception as e:
+        logger.error(f"Error listing documents: {e}")
+        raise HTTPException(status_code=500, detail=str(e))
+
 @api_router.get("/graph/data")
 async def get_graph_data(current_user: dict = Depends(get_current_user)):
     """Exports full graph data for the 2D visualizer"""
