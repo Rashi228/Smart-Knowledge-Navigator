@@ -460,7 +460,7 @@ export default function App() {
                     <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
                     Retrieval Context
                   </h3>
-                  <button 
+                  <button
                     onClick={() => setIsRightSidebarOpen(false)}
                     className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
                     title="Hide Panel"
@@ -489,9 +489,9 @@ export default function App() {
       )}
 
       {showMindMap && (
-        <MindMap 
-          onClose={() => setShowMindMap(false)} 
-          chatMessages={activeChat?.messages || []} 
+        <MindMap
+          onClose={() => setShowMindMap(false)}
+          chatMessages={activeChat?.messages || []}
         />
       )}
 

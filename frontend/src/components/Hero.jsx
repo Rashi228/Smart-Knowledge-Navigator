@@ -6,17 +6,17 @@ export default function Hero() {
   return (
     <div className="flex flex-col lg:flex-row items-center justify-between min-h-[80vh] gap-12">
       <div className="flex-1 space-y-8">
-        <motion.h1 
+        <motion.h1
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, ease: "easeOut" }}
           className="text-5xl lg:text-7xl font-bold tracking-tight leading-tight"
         >
-          Self-Healing <br className="hidden lg:block"/>
+          Self-Healing <br className="hidden lg:block" />
           <span className="text-primary">Knowledge graph</span>
         </motion.h1>
-        
-        <motion.p 
+
+        <motion.p
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.2, ease: "easeOut" }}
@@ -24,8 +24,8 @@ export default function Hero() {
         >
           A multi-agent retrieval system that retrieves, reasons, validates, and dynamically updates your distributed knowledge spaces.
         </motion.p>
-        
-        <motion.div 
+
+        <motion.div
           initial={{ opacity: 0, y: 20 }}
           animate={{ opacity: 1, y: 0 }}
           transition={{ duration: 0.8, delay: 0.4, ease: "easeOut" }}
@@ -40,7 +40,7 @@ export default function Hero() {
         </motion.div>
       </div>
 
-      <motion.div 
+      <motion.div
         initial={{ opacity: 0, rotateY: 30, scale: 0.9 }}
         animate={{ opacity: 1, rotateY: 0, scale: 1 }}
         transition={{ duration: 1.2, ease: "easeOut" }}
@@ -48,7 +48,7 @@ export default function Hero() {
         style={{ perspective: 1000 }}
       >
         <div className="absolute inset-0 grid grid-cols-2 gap-4">
-          <motion.div 
+          <motion.div
             animate={{ y: [0, -10, 0] }}
             transition={{ repeat: Infinity, duration: 4, ease: "easeInOut" }}
             className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-between shadow-2xl"
@@ -57,8 +57,8 @@ export default function Hero() {
             <h3 className="font-semibold text-lg">Vector Storage</h3>
             <p className="text-sm text-textMuted mt-2">Semantic search across millions of embedding vectors.</p>
           </motion.div>
-          
-          <motion.div 
+
+          <motion.div
             animate={{ y: [0, 15, 0] }}
             transition={{ repeat: Infinity, duration: 5, ease: "easeInOut" }}
             className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-between shadow-2xl translate-y-8"
@@ -67,8 +67,8 @@ export default function Hero() {
             <h3 className="font-semibold text-lg">Hypergraph</h3>
             <p className="text-sm text-textMuted mt-2">Relational reasoning using Neo4j knowledge graphs.</p>
           </motion.div>
-          
-          <motion.div 
+
+          <motion.div
             animate={{ y: [0, -15, 0] }}
             transition={{ repeat: Infinity, duration: 4.5, ease: "easeInOut" }}
             className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-between shadow-2xl translate-y-4"
@@ -78,7 +78,7 @@ export default function Hero() {
             <p className="text-sm text-textMuted mt-2">Continuous background conflict resolution & self-healing.</p>
           </motion.div>
 
-          <motion.div 
+          <motion.div
             animate={{ y: [0, 10, 0] }}
             transition={{ repeat: Infinity, duration: 5.5, ease: "easeInOut" }}
             className="bg-surface border border-border rounded-xl p-6 flex flex-col justify-between shadow-2xl -translate-y-4"
