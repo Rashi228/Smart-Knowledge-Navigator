@@ -11,31 +11,50 @@ import ArtifactPanel from './components/ArtifactPanel';
 import MindMap from './components/MindMap';
 
 export default function App() {
-  const [chats, setChats] = useState(() => {
-    const saved = localStorage.getItem('hyperrag_chats');
-    if (saved) {
-      try { return JSON.parse(saved).map(c => ({ ...c, selectedFiles: c.selectedFiles || [] })); } catch (e) { }
-    }
-    return [{ id: Date.now(), title: 'New Chat', messages: [], selectedFiles: [] }];
-  });
+  // --- 1. ALL PRIMARY STATE & REFS ---
+  const [user, setUser] = useState(null);
+  const [chats, setChats] = useState([{ id: Date.now(), title: 'New Chat', messages: [], selectedFiles: [] }]);
+  const [currentChatId, setCurrentChatId] = useState(Date.now());
+  const [token, setToken] = useState(localStorage.getItem('hyperrag_token') || null);
+  const [showRegister, setShowRegister] = useState(false);
+  const [showGraph, setShowGraph] = useState(false);
+  const [showSourceSelection, setShowSourceSelection] = useState(false);
+  const [showMindMap, setShowMindMap] = useState(false);
+  const [activeArtifact, setActiveArtifact] = useState(null);
+  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
+  const [activeMessageId, setActiveMessageId] = useState(null);
+  const [activeSource, setActiveSource] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]);
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+  const [isUploading, setIsUploading] = useState(false);
+  const [suggestions, setSuggestions] = useState([]);
+  const [isGenerating, setIsGenerating] = useState(false);
+  const abortControllerRef = useRef(null);
 
-  const [currentChatId, setCurrentChatId] = useState(() => {
-    const savedId = localStorage.getItem('hyperrag_current_chat');
-    // If we have a saved ID and the chat exists, use it. Otherwise default to first
-    return savedId ? Number(savedId) : chats[0]?.id;
-  });
-
+  // --- 2. DERIVED DATA (Initialized AFTER all states) ---
   const activeChat = chats.find(c => c.id === currentChatId) || chats[0];
   const messages = activeChat?.messages || [];
+  const currentInsights = activeMessageId 
+    ? { ...(messages.find(m => m.id === activeMessageId)?.insights || activeChat?.insights || {}), isHistorical: true }
+    : (activeChat?.insights || null);
 
-  // Persist State Changes
-  useEffect(() => {
-    localStorage.setItem('hyperrag_chats', JSON.stringify(chats));
-  }, [chats]);
+  // --- 3. UTILITY HANDLERS ---
+  const handleLogout = () => {
+    localStorage.removeItem('hyperrag_token');
+    setToken(null);
+    setUser(null);
+    setChats([{ id: Date.now(), title: 'New Chat', messages: [], selectedFiles: [] }]);
+    setUploadedFiles([]);
+  };
 
-  useEffect(() => {
-    localStorage.setItem('hyperrag_current_chat', currentChatId.toString());
-  }, [currentChatId]);
+  const handleLogin = (newToken) => {
+    localStorage.setItem('hyperrag_token', newToken);
+    setToken(newToken);
+  };
+
+  const handleRegister = (email, password) => {
+    setShowRegister(false);
+  };
 
   const setMessages = (updater) => {
     setChats(prevChats => prevChats.map(chat => {
@@ -56,7 +75,7 @@ export default function App() {
     const newId = Date.now();
     setChats(prev => [{ id: newId, title: 'New Chat', messages: [], insights: null, selectedFiles: [] }, ...prev]);
     setCurrentChatId(newId);
-    setShowSourceSelection(true); // Open selection immediately
+    setShowSourceSelection(true);
   };
 
   const handleUpdateChatFiles = (chatId, files) => {
@@ -83,72 +102,7 @@ export default function App() {
     });
   };
 
-  const [activeMessageId, setActiveMessageId] = useState(null);
-  const [activeSource, setActiveSource] = useState(null);
-  const [uploadedFiles, setUploadedFiles] = useState([]);
-
-  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
-  const [isUploading, setIsUploading] = useState(false);
-  const [suggestions, setSuggestions] = useState([]);
-  const [isGenerating, setIsGenerating] = useState(false);
-  const abortControllerRef = useRef(null);
-
-  // Auth state
-  const [token, setToken] = useState(localStorage.getItem('hyperrag_token') || null);
-  const [showRegister, setShowRegister] = useState(false);
-  const [showGraph, setShowGraph] = useState(false);
-  const [showSourceSelection, setShowSourceSelection] = useState(false);
-  const [showMindMap, setShowMindMap] = useState(false);
-  const [activeArtifact, setActiveArtifact] = useState(null);
-  const [isRightSidebarOpen, setIsRightSidebarOpen] = useState(true);
-
-  // Fetch uploaded files from backend (source of truth)
-  // NOTE: defined after handleLogout to avoid reference-before-definition
-
-  // Derive current insights from active chat
-  const currentInsights = activeChat?.insights || null;
-
-  const fetchSuggestions = async () => {
-    try {
-      if (!token) return;
-      const res = await fetch('http://localhost:8000/api/v1/suggestions', {
-        headers: { 'Authorization': `Bearer ${token}` }
-      });
-      if (res.status === 401) {
-        handleLogout();
-        return;
-      }
-      if (res.ok) {
-        const data = await res.json();
-        setSuggestions(data.suggestions || []);
-      }
-    } catch (err) {
-      console.error(err);
-    }
-  };
-
-  useEffect(() => {
-    fetchSuggestions();
-  }, [token]);
-
-  const handleLogin = (newToken) => {
-    localStorage.setItem('hyperrag_token', newToken);
-    setToken(newToken);
-  };
-
-  const handleRegister = (email, password) => {
-    // Usually you'd automatically log them in or redirect to login.
-    setShowRegister(false);
-  };
-
-  const handleLogout = () => {
-    localStorage.removeItem('hyperrag_token');
-    setToken(null);
-    setChats([{ id: Date.now(), title: 'New Chat', messages: [], selectedFiles: [] }]);
-    setUploadedFiles([]);
-  };
-
-  // Fetch file list from backend — defined here so handleLogout is in scope
+  // --- 4. DATA FETCHING HANDLERS ---
   const fetchUploadedFiles = async () => {
     if (!token) return;
     try {
@@ -165,6 +119,20 @@ export default function App() {
     }
   };
 
+  const fetchSuggestions = async () => {
+    if (!token) return;
+    try {
+      const res = await fetch('http://localhost:8000/api/v1/suggestions', {
+        headers: { 'Authorization': `Bearer ${token}` }
+      });
+      if (res.status === 401) { handleLogout(); return; }
+      if (res.ok) {
+        const data = await res.json();
+        setSuggestions(data.suggestions || []);
+      }
+    } catch (err) { console.error(err); }
+  };
+
   const handleUpload = async (file) => {
     if (!file) return;
     const formData = new FormData();
@@ -176,13 +144,10 @@ export default function App() {
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
       });
-      if (response.status === 401) {
-        handleLogout();
-        return;
-      }
+      if (response.status === 401) { handleLogout(); return; }
       if (!response.ok) throw new Error("Upload Failed");
       await response.json();
-      await fetchUploadedFiles(); // Refresh from backend (source of truth)
+      await fetchUploadedFiles();
       fetchSuggestions();
     } catch (err) {
       console.error("Error uploading file:", err);
@@ -192,13 +157,8 @@ export default function App() {
     }
   };
 
-  // Auto-fetch file list on login/token change
-  useEffect(() => {
-    fetchUploadedFiles();
-  }, [token]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  const handleConfluenceSync = async (url) => {
-    if (!url) return;
+  const handleConfluenceSync = async (config) => {
+    if (!config || !config.domain) return;
     setIsUploading(true);
     try {
       const response = await fetch('http://localhost:8000/api/v1/confluence/sync', {
@@ -207,49 +167,35 @@ export default function App() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${token}`
         },
-        body: JSON.stringify({ url })
+        body: JSON.stringify(config)
       });
-
-      if (response.status === 401) {
-        handleLogout();
-        return;
-      }
+      if (response.status === 401) { handleLogout(); return; }
       if (!response.ok) {
         const errData = await response.json();
         throw new Error(errData.detail || "Sync Failed");
       }
-
-      const data = await response.json();
-      console.log("Confluence Sync Success:", data);
-      await fetchUploadedFiles(); // Refresh from backend
+      await fetchUploadedFiles();
       fetchSuggestions();
     } catch (err) {
       console.error("Error syncing Confluence:", err);
-      alert(`Failed to sync Confluence: ${err.message}`);
+      alert(`Failed to sync Space: ${err.message}`);
     } finally {
       setIsUploading(false);
     }
   };
 
   const handleDeleteFile = async (filename) => {
-    if (!window.confirm("Are you sure you want to delete this file from your database? This will remove all its info everywhere.")) {
-      return;
-    }
+    if (!window.confirm("Are you sure?")) return;
     try {
       const response = await fetch(`http://localhost:8000/api/v1/documents/${encodeURIComponent(filename)}`, {
         method: 'DELETE',
         headers: { 'Authorization': `Bearer ${token}` }
       });
-      if (response.status === 401) {
-        handleLogout();
-        return;
-      }
+      if (response.status === 401) { handleLogout(); return; }
       if (!response.ok) throw new Error("Delete Failed");
-
-      await fetchUploadedFiles(); // Refresh from backend
+      await fetchUploadedFiles();
     } catch (err) {
       console.error("Error deleting file:", err);
-      alert("Failed to delete the document.");
     }
   };
 
@@ -260,7 +206,7 @@ export default function App() {
       setMessages(prev => {
         const last = prev[prev.length - 1];
         if (last && last.isTyping) {
-          return prev.map((m, i) => i === prev.length - 1 ? { ...m, isTyping: false, content: 'Generation manually stopped by user.' } : m);
+          return prev.map((m, i) => i === prev.length - 1 ? { ...m, isTyping: false, content: 'Generation manually stopped.' } : m);
         }
         return prev;
       });
@@ -271,19 +217,9 @@ export default function App() {
     e.preventDefault();
     if (!input.trim()) return;
 
-    const newUserMsg = {
-      id: Date.now(),
-      role: 'user',
-      content: input
-    };
-
+    const newUserMsg = { id: Date.now(), role: 'user', content: input };
     const loadingId = Date.now() + 1;
-    const loadingMsg = {
-      id: loadingId,
-      role: 'assistant',
-      isTyping: true,
-      content: ''
-    };
+    const loadingMsg = { id: loadingId, role: 'assistant', isTyping: true, content: '' };
 
     setMessages(prev => [...prev, newUserMsg, loadingMsg]);
     setIsGenerating(true);
@@ -305,25 +241,11 @@ export default function App() {
       });
 
       if (!response.ok) {
-        if (response.status === 401) {
-          handleLogout();
-          return;
-        }
+        if (response.status === 401) { handleLogout(); return; }
         throw new Error('Network response was not ok');
       }
 
       const data = await response.json();
-
-      const newAiMsg = {
-        id: loadingId,
-        role: 'assistant',
-        content: data.answer,
-        citations: data.citations,
-        steps: data.steps
-      };
-
-      setMessages(prev => prev.map(m => m.id === loadingId ? newAiMsg : m));
-
       const insights = {
         confidence: data.confidence_level,
         confidenceScore: data.confidence_score,
@@ -332,22 +254,13 @@ export default function App() {
         steps: data.steps || []
       };
 
-      // Store insights in the current chat
-      setChats(prev => prev.map(chat =>
-        chat.id === currentChatId ? { ...chat, insights } : chat
-      ));
+      const newAiMsg = { id: loadingId, role: 'assistant', content: data.answer, citations: data.citations, steps: data.steps, insights };
+      setMessages(prev => prev.map(m => m.id === loadingId ? newAiMsg : m));
+      setChats(prev => prev.map(chat => chat.id === currentChatId ? { ...chat, insights } : chat));
 
     } catch (error) {
-      if (error.name === 'AbortError') {
-        console.log("Query gracefully aborted.");
-      } else {
-        console.error("Error querying backend:", error);
-        const fallbackAiMsg = {
-          id: loadingId,
-          role: 'assistant',
-          content: "I couldn't reach the HyperRAG-X API. Please ensure the backend is running and Ollama is responsive.",
-          citations: []
-        };
+      if (error.name !== 'AbortError') {
+        const fallbackAiMsg = { id: loadingId, role: 'assistant', content: "Error reaching API.", citations: [] };
         setMessages(prev => prev.map(m => m.id === loadingId ? fallbackAiMsg : m));
       }
     } finally {
@@ -355,6 +268,51 @@ export default function App() {
     }
   };
 
+  // --- 5. EFFECTS ---
+  useEffect(() => {
+    const fetchUser = async () => {
+      if (!token) { setUser(null); return; }
+      try {
+        const res = await fetch('http://localhost:8000/api/v1/auth/me', {
+          headers: { 'Authorization': `Bearer ${token}` }
+        });
+        if (res.ok) { setUser(await res.json()); }
+        else if (res.status === 401) { handleLogout(); }
+      } catch (err) { console.error(err); }
+    };
+    fetchUser();
+  }, [token]);
+
+  useEffect(() => {
+    if (!user) {
+      setChats([{ id: Date.now(), title: 'New Chat', messages: [], selectedFiles: [] }]);
+      return;
+    }
+    const storageKey = `hyperrag_chats_${user.email}`;
+    const saved = localStorage.getItem(storageKey);
+    if (saved) {
+      try {
+        const parsed = JSON.parse(saved).map(c => ({ ...c, selectedFiles: c.selectedFiles || [] }));
+        setChats(parsed);
+        const savedId = localStorage.getItem(`hyperrag_current_chat_${user.email}`);
+        if (savedId && parsed.find(c => c.id === Number(savedId))) setCurrentChatId(Number(savedId));
+        else if (parsed.length > 0) setCurrentChatId(parsed[0].id);
+      } catch (e) { console.error(e); }
+    }
+  }, [user]);
+
+  useEffect(() => {
+    if (user && chats.length > 0) localStorage.setItem(`hyperrag_chats_${user.email}`, JSON.stringify(chats));
+  }, [chats, user]);
+
+  useEffect(() => {
+    if (user && currentChatId) localStorage.setItem(`hyperrag_current_chat_${user.email}`, currentChatId.toString());
+  }, [currentChatId, user]);
+
+  useEffect(() => { fetchUploadedFiles(); }, [token]);
+  useEffect(() => { fetchSuggestions(); }, [token]);
+
+  // --- 6. RENDER ---
   if (!token) {
     return (
       <div className="flex h-screen items-center justify-center bg-[#f8fafc]">
@@ -369,139 +327,54 @@ export default function App() {
 
   return (
     <div className="flex h-screen bg-[#0f172a] overflow-hidden font-sans text-slate-800">
-
-      {/* Sidebar Overlay for Mobile/Collapsing */}
-      {isSidebarOpen && (
-        <div
-          className="fixed inset-0 bg-slate-900/50 z-20 md:hidden backdrop-blur-sm transition-opacity"
-          onClick={() => setIsSidebarOpen(false)}
-        />
-      )}
-
-      {/* Sidebar Container */}
-      <div className={`fixed md:relative z-30 h-full transition-all duration-300 ease-in-out flex-shrink-0 border-r border-slate-800 ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-0 md:translate-x-0 md:w-0 overflow-hidden border-none'
-        }`}>
-        {/* We use width 72 (18rem) inherently in Sidebar.jsx, so we control its parent container to mask it */}
+      {isSidebarOpen && <div className="fixed inset-0 bg-slate-900/50 z-20 md:hidden backdrop-blur-sm" onClick={() => setIsSidebarOpen(false)} />}
+      
+      <div className={`fixed md:relative z-30 h-full transition-all duration-300 ease-in-out border-r border-slate-800 ${isSidebarOpen ? 'translate-x-0 w-72' : '-translate-x-full w-0 md:translate-x-0 md:w-0 overflow-hidden'}`}>
         <div className="w-72 h-full">
           <Sidebar
-            onLogout={handleLogout}
-            onUpload={handleUpload}
-            onConfluenceSync={handleConfluenceSync}
-            onDeleteFile={handleDeleteFile}
-            isUploading={isUploading}
-            uploadedFiles={uploadedFiles}
-            chats={chats}
-            currentChatId={currentChatId}
-            onSelectChat={setCurrentChatId}
-            onNewChat={createNewChat}
-            onRenameChat={handleRenameChat}
-            onDeleteChat={handleDeleteChat}
-            onShowGraph={() => setShowGraph(true)}
-            onShowMindMap={() => setShowMindMap(true)}
-            onOpenSourceSelection={() => setShowSourceSelection(true)}
+            onLogout={handleLogout} onUpload={handleUpload} onConfluenceSync={handleConfluenceSync} onDeleteFile={handleDeleteFile}
+            isUploading={isUploading} uploadedFiles={uploadedFiles} chats={chats} currentChatId={currentChatId}
+            onSelectChat={setCurrentChatId} onNewChat={createNewChat} onRenameChat={handleRenameChat} onDeleteChat={handleDeleteChat}
+            onShowGraph={() => setShowGraph(true)} onShowMindMap={() => setShowMindMap(true)} onOpenSourceSelection={() => setShowSourceSelection(true)}
             onClose={() => setIsSidebarOpen(false)}
           />
         </div>
       </div>
 
-      <div className={`flex-1 flex bg-[#f8fafc] relative z-10 w-full transition-all duration-300 min-w-0 overflow-hidden`}>
-        {/* Chat Area - flex-1 expands to available space */}
+      <div className="flex-1 flex bg-[#f8fafc] w-full transition-all duration-300 min-w-0 overflow-hidden">
         <div className="flex-1 flex flex-col h-full overflow-hidden border-r border-slate-100 relative">
           <div className="flex-1 min-h-0 relative">
-            {!isSidebarOpen && (
-              <button
-                onClick={() => setIsSidebarOpen(true)}
-                title="Expand Knowledge Source"
-                className="absolute top-4 left-4 z-50 p-2.5 bg-white backdrop-blur border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:bg-slate-50 text-slate-600 transition-all flex items-center justify-center group"
-              >
-                <svg className="w-5 h-5 group-hover:text-indigo-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h7"></path></svg>
-              </button>
-            )}
-
-            {!isRightSidebarOpen && !activeArtifact && (
-              <button
-                onClick={() => setIsRightSidebarOpen(true)}
-                title="Show Insights"
-                className="absolute top-4 right-4 z-50 p-2.5 bg-white backdrop-blur border border-slate-200 rounded-xl shadow-sm hover:shadow-md hover:bg-slate-50 text-slate-600 transition-all flex items-center justify-center group"
-              >
-                <svg className="w-5 h-5 group-hover:text-violet-600 transition-colors" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 6h-16M13 12h7M10 18h10"></path></svg>
-              </button>
-            )}
-
+            {!isSidebarOpen && <button onClick={() => setIsSidebarOpen(true)} className="absolute top-4 left-4 z-50 p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M4 6h16M4 12h16M4 18h7"></path></svg></button>}
+            {!isRightSidebarOpen && !activeArtifact && <button onClick={() => setIsRightSidebarOpen(true)} className="absolute top-4 right-4 z-50 p-2.5 bg-white border border-slate-200 rounded-xl shadow-sm"><svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M20 6h-16M13 12h7M10 18h10"></path></svg></button>}
+            
             <ChatInterface
-              messages={messages}
-              setMessages={setMessages}
-              setActiveMessageId={setActiveMessageId}
-              onSourceClick={setActiveSource}
-              isSidebarOpen={isSidebarOpen}
-              suggestions={suggestions}
-              onSendMessage={handleSendMessage}
-              isGenerating={isGenerating}
-              onStopGenerating={handleStopGenerating}
-              onOpenSourceSelection={() => setShowSourceSelection(true)}
-              chats={chats}
-              currentChatId={currentChatId}
-              onArtifactOpen={setActiveArtifact}
+              messages={messages} setMessages={setMessages} setActiveMessageId={setActiveMessageId} onSourceClick={setActiveSource}
+              isSidebarOpen={isSidebarOpen} suggestions={suggestions} onSendMessage={handleSendMessage} isGenerating={isGenerating}
+              onStopGenerating={handleStopGenerating} onOpenSourceSelection={() => setShowSourceSelection(true)}
+              chats={chats} currentChatId={currentChatId} onArtifactOpen={setActiveArtifact}
             />
           </div>
         </div>
 
-        {/* Persistent Right Side Panel */}
-        <div className={`transition-all duration-500 ease-in-out bg-white flex flex-col flex-shrink-0 relative border-l border-slate-200
-          ${activeArtifact ? 'w-full lg:w-1/2' : isRightSidebarOpen ? 'w-0 lg:w-[360px]' : 'w-0'}
-        `}>
+        <div className={`transition-all duration-500 bg-white flex flex-col relative border-l border-slate-200 ${activeArtifact ? 'w-full lg:w-1/2' : isRightSidebarOpen ? 'w-0 lg:w-[360px]' : 'w-0'}`}>
           <div className="h-full w-full relative overflow-hidden flex flex-col">
-            {activeArtifact ? (
-              <ArtifactPanel artifact={activeArtifact} onClose={() => setActiveArtifact(null)} />
-            ) : (
+            {activeArtifact ? <ArtifactPanel artifact={activeArtifact} onClose={() => setActiveArtifact(null)} /> : (
               <div className="h-full flex flex-col bg-slate-50/50">
                 <div className="p-4 border-b border-slate-100 bg-white flex items-center justify-between">
-                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2">
-                    <div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />
-                    Retrieval Context
-                  </h3>
-                  <button
-                    onClick={() => setIsRightSidebarOpen(false)}
-                    className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400 hover:text-slate-600 transition-colors"
-                    title="Hide Panel"
-                  >
-                    <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg>
-                  </button>
+                  <h3 className="text-xs font-bold text-slate-400 uppercase tracking-widest flex items-center gap-2"><div className="w-1.5 h-1.5 rounded-full bg-indigo-500 animate-pulse" />Retrieval Context</h3>
+                  <button onClick={() => setIsRightSidebarOpen(false)} className="p-1.5 hover:bg-slate-100 rounded-lg text-slate-400"><svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2.5" d="M6 18L18 6M6 6l12 12"></path></svg></button>
                 </div>
-                <div className="flex-1 overflow-auto p-4 flex flex-col gap-4">
-                  <InsightPanel insights={currentInsights} />
-                </div>
+                <div className="flex-1 overflow-auto p-4"><InsightPanel insights={currentInsights} /></div>
               </div>
             )}
           </div>
         </div>
       </div>
 
-      {activeSource && (
-        <SourceViewerModal
-          source={activeSource}
-          onClose={() => setActiveSource(null)}
-        />
-      )}
-
-      {showGraph && (
-        <GraphVisualizer onClose={() => setShowGraph(false)} />
-      )}
-
-      {showMindMap && (
-        <MindMap
-          onClose={() => setShowMindMap(false)}
-          chatMessages={activeChat?.messages || []}
-        />
-      )}
-
-      <SourceSelectionModal
-        isOpen={showSourceSelection}
-        onClose={() => setShowSourceSelection(false)}
-        uploadedFiles={uploadedFiles}
-        initialSelection={activeChat?.selectedFiles || []}
-        onConfirm={(files) => handleUpdateChatFiles(currentChatId, files)}
-      />
+      {activeSource && <SourceViewerModal source={activeSource} onClose={() => setActiveSource(null)} />}
+      {showGraph && <GraphVisualizer onClose={() => setShowGraph(false)} />}
+      {showMindMap && <MindMap onClose={() => setShowMindMap(false)} chatMessages={messages} />}
+      <SourceSelectionModal isOpen={showSourceSelection} onClose={() => setShowSourceSelection(false)} uploadedFiles={uploadedFiles} initialSelection={activeChat?.selectedFiles || []} onConfirm={(files) => handleUpdateChatFiles(currentChatId, files)} />
     </div>
   );
 }

@@ -77,7 +77,11 @@ def adaptive_retrieval_node(state: AgentState):
     state["steps_taken"].append({"step": "Adaptive Selection & Retrieval", "status": "Done"})
     
     # 1. Fetch Direct Memory (Small files that bypassed RAG, filtered by chat selection)
-    state["memory_context"] = memory_cache.get_context(state.get("files"))
+    # Only in Private or Hybrid mode
+    if state.get("mode", "Private") in ("Private", "Hybrid"):
+        state["memory_context"] = memory_cache.get_context(state.get("files"))
+    else:
+        state["memory_context"] = []
     
     # 2. Qdrant Vector Search (only in Private/Hybrid)
     if state.get("mode", "Private") in ("Private", "Hybrid"):
@@ -97,12 +101,16 @@ def adaptive_retrieval_node(state: AgentState):
         state["vector_context"] = []
 
     # 3. NetworkX Graph Search (Multi-Hop)
-    keywords = state["query"].split()
-    g_ctx = []
-    for w in keywords:
-        if len(w) > 4:  # Quick keyword rule
-            g_ctx.extend(graph_db.get_context_for_entity(w, file_filter=state.get("files")))
-    state["graph_context"] = g_ctx
+    # Only in Private or Hybrid mode
+    if state.get("mode", "Private") in ("Private", "Hybrid"):
+        keywords = state["query"].split()
+        g_ctx = []
+        for w in keywords:
+            if len(w) > 4:  # Quick keyword rule
+                g_ctx.extend(graph_db.get_context_for_entity(w, file_filter=state.get("files")))
+        state["graph_context"] = g_ctx
+    else:
+        state["graph_context"] = []
     
     # Set the strategy string for Frontend UI tracking
     has_vector = len(state["vector_context"]) > 0
@@ -127,26 +135,102 @@ def adaptive_retrieval_node(state: AgentState):
 
 # ----------------- AGENT 3: WEB SEARCH NODE -----------------
 def web_search_node(state: AgentState):
-    """Fetches live DuckDuckGo results when mode is Online or Hybrid"""
+    """Fetches live internet results using Tavily (Primary), FireCrawl, or DDGS"""
     mode = state.get("mode", "Private")
     if mode not in ("Online", "Hybrid"):
         state["web_context"] = []
         return state
 
     logger.info(f"Agent [WebSearch]: Fetching live web results (mode={mode})")
-    state["steps_taken"].append({"step": "Live Web Intelligence Fetch", "status": "Done"})
+    state["steps_taken"].append({"step": "AI Search Intelligence Fetch", "status": "Done"})
+    
+    search_query = state["query"]
+    # 0. Quick Keyword Refinement
+    api_key = os.getenv("GROQ_API_KEY")
+    if api_key:
+        try:
+            refine_sys = "You are a Search Expert. Convert the user query into 3-5 high-intent search keywords. Output ONLY keywords."
+            llm_fast = ChatGroq(model="llama-3.1-8b-instant", temperature=0.0, groq_api_key=api_key)
+            search_query = llm_fast.invoke([("system", refine_sys), ("human", state["query"])]).content
+            logger.info(f"Refined Web Query: {search_query}")
+        except Exception:
+            pass
+
+    # 1. PRIMARY: TAVILY SEARCH (Optimized for RAG)
+    tavily_key = os.getenv("TAVILY_API_KEY")
+    if tavily_key:
+        try:
+            from tavily import TavilyClient
+            tavily = TavilyClient(api_key=tavily_key)
+            # Use 'context' search for RAG-ready data
+            response = tavily.search(query=search_query, search_depth="advanced", max_results=5)
+            if response and "results" in response:
+                state["web_context"] = [
+                    {
+                        "source": f"Web: {r.get('title', 'Tavily Intelligence')}", 
+                        "content": r.get("content", ""), 
+                        "url": r.get("url")
+                    } 
+                    for r in response["results"]
+                ]
+                logger.info(f"Tavily: Fetched {len(state['web_context'])} premium results.")
+                return state
+        except Exception as e:
+            logger.warning(f"Tavily search failed: {e}. Falling back...")
+
+    # 2. SECONDARY: FIRE_CRAWL (If Tavily fails)
+    firecrawl_key = os.getenv("FIRE_CRAWL_API_KEY")
+    if firecrawl_key:
+        try:
+            from firecrawl import FirecrawlApp
+            app = FirecrawlApp(api_key=firecrawl_key)
+            search_result = app.search(search_query) # Modern SDK usage
+            
+            # Safely handle Pydantic object return types
+            if hasattr(search_result, "model_dump"):
+                search_result = search_result.model_dump()
+            elif hasattr(search_result, "dict"):
+                search_result = search_result.dict()
+            elif not isinstance(search_result, dict):
+                search_result = vars(search_result)
+                
+            data = search_result.get("data", []) if isinstance(search_result, dict) else getattr(search_result, "data", [])
+            
+            # Also safely cast items inside data
+            safe_data = []
+            for item in data:
+                if hasattr(item, "model_dump"): safe_data.append(item.model_dump())
+                elif hasattr(item, "dict"): safe_data.append(item.dict())
+                elif not isinstance(item, dict): safe_data.append(vars(item))
+                else: safe_data.append(item)
+
+            if safe_data:
+                state["web_context"] = [
+                    {
+                        "source": f"Web: {r.get('metadata', {}).get('title', 'Firecrawl Intelligence')}", 
+                        "content": r.get("markdown", r.get("content", ""))[:1500],
+                        "url": r.get("url")
+                    } 
+                    for r in safe_data[:3]
+                ]
+                logger.info(f"Firecrawl: Extracted {len(state['web_context'])} deep pages.")
+                return state
+        except Exception as e:
+            logger.warning(f"Firecrawl failed: {e}.")
+
+    # 3. FALLBACK: DUCKDUCKGO (If all else fails)
     try:
         from duckduckgo_search import DDGS
-        from urllib.parse import urlparse
         with DDGS() as ddgs:
-            results = list(ddgs.text(state["query"], max_results=3))
+            # Modern usage for DDGS 6.x
+            results = list(ddgs.text(search_query, max_results=8))
             state["web_context"] = [
-                {"source": f"Web: {urlparse(r['href']).netloc}", "content": r["body"], "url": r["href"]} 
+                {"source": f"Web: {r['href']}", "content": r["body"], "url": r["href"]} 
                 for r in results
             ]
-        logger.info(f"WebSearch: Fetched {len(state['web_context'])} live results.")
+        logger.info(f"WebSearch: Fetched {len(state['web_context'])} DDG results.")
     except Exception as e:
-        logger.error(f"Web search failed: {e}")
+        logger.error(f"All web search methods failed: {e}")
         state["web_context"] = []
     return state
 
@@ -184,26 +268,32 @@ def synthesis_node(state: AgentState):
     logger.info("Agent [Synthesizer]: Crafting final response structure")
     state["steps_taken"].append({"step": "Strict Contextual Synthesis", "status": "Done"})
 
-    # Cap context to 3000 chars to keep LLM prompt short and fast on CPU 
-    context = state['fused_context'][:3000] if state['fused_context'] else ""
+    # Cap context to 5000 chars for richer synthesis
+    context = state['fused_context'][:5000] if state['fused_context'] else ""
+    mode = state.get("mode", "Private")
     
+    # Mode-specific instruction
+    mode_inst = ""
+    if mode == "Online":
+        mode_inst = "STRICT: You are in LIVE WEB mode. Use ONLY web search results. If the search yielded no results, state 'No web information found' instead of generic LLM refusal."
+    elif mode == "Hybrid":
+        mode_inst = "STRICT: You are in HYBRID mode. Synthesize information from both internal documents and web results. If they conflict, prioritize internal documents but mention the web alternative."
+    else:
+        mode_inst = "STRICT: You are in PRIVATE mode. Use ONLY the provided internal document context."
+
     system = (
         "You are HyperRAG-X, an elite enterprise knowledge assistant. "
-        "Your goal is to provide a structured, professional, and HIGH-END VISUAL response based ONLY on the provided context.\n\n"
+        f"{mode_inst}\n\n"
+        "Your goal is to provide a structured, professional, and HIGH-END VISUAL response based on the provided context.\n\n"
         "STRICT ARTIFACT RULES:\n"
-        "1. FOR COMPARISONS: For ANY comparison (features, costs, dates, metrics), you MUST use the [ARTIFACT] block to create a 'Premium Designer Dashboard'. DO NOT output raw markdown tables.\n"
-        "2. DESIGNER DASHBOARD (HTML): Generate professional HTML + Tailwind CSS code. Use a modern SaaS aesthetic:\n"
-        "   - Container: <div class='p-6 bg-slate-50 min-h-screen font-sans'>\n"
-        "   - Title Section: Use <h1 class='text-2xl font-extrabold text-indigo-950 mb-4'> with a <div class='h-1 w-20 bg-indigo-600 rounded-full mb-6'> divider.\n"
-        "   - Grid/Cards: Use <div class='grid grid-cols-1 md:grid-cols-2 gap-4'> and <div class='p-5 bg-white rounded-2xl border border-slate-200 shadow-sm hover:shadow-md transition-shadow'>.\n"
-        "   - Icons: Use colored circles with emojis/lucide icons (e.g. <div class='w-10 h-10 rounded-lg bg-indigo-100 flex items-center justify-center text-indigo-600 mb-3'>).\n"
-        "   - Suggestions Footer: Include a <div class='mt-8 p-4 bg-indigo-900 text-indigo-50 rounded-2xl'> section for 'Pro Insights'.\n"
-        "   Format: [ARTIFACT: Finance Dashboard] <div class='...'> ... </div> [/ARTIFACT]\n"
+        "1. FOR COMPARISONS: For ANY comparison, you MUST use the [ARTIFACT] block for a 'Premium Designer Dashboard'. DO NOT output raw markdown tables.\n"
+        "2. DESIGNER DASHBOARD (HTML): Generate professional HTML + Tailwind CSS code. Use a modern SaaS aesthetic.\n"
+        "   Format: [ARTIFACT: Dashboard Name] <div class='...'> ... </div> [/ARTIFACT]\n"
         "3. FORMATTING: Structure the rest of the answer using beautiful Markdown (numbered lists, bold text).\n"
-        "4. DO NOT REPEAT YOURSELF. CITATIONS: mention source filename in brackets e.g. [Source: report.pdf] at the end of points.\n"
-        "5. If information is missing, clearly state 'Information not found in internal documents'."
+        "4. CITATIONS: Use brackets [Source: Name] at the end of relevant points. Mention if a source is from 'Web' or a specific file.\n"
+        "5. If information is missing in context, clearly state 'Information not found in the selected context'."
     )
-    user = f"CONTEXT:\n{context}\n\nUSER QUERY: {state['original_query']}\n\nFINAL RESPONSE (Concise & Structured):"
+    user = f"CONTEXT:\n{context or 'No search results or documents found.'}\n\nUSER QUERY: {state['original_query']}\n\nFINAL RESPONSE (Concise & Structured):"
     
     ans = run_llm(system, user)
     state["final_answer"] = ans
@@ -217,19 +307,38 @@ def verifier_node(state: AgentState):
 
     answer = state.get("final_answer", "")
     
-    # Fast heuristic scoring - no second Ollama call needed
-    score = 85.0  # Base: assume good
+    # Fast heuristic scoring - dynamic rather than static
+    score = 80.0  # Base
     
     bad_signals = [
         "i apologize", "no context", "no information", "cannot find",
-        "i don't have", "not provided", "no provided", "error connecting", "SYSTEM:"
+        "i don't have", "not provided", "no provided", "error connecting", "system:", "no web information found"
     ]
+    
     if any(sig in answer.lower() for sig in bad_signals):
-        score = 55.0  # Low quality signals detected
+        score = max(40.0, 55.0 - (len(answer) % 15))  # Low quality signals detected
     elif len(answer) < 80:
-        score = 60.0  # Answer too short to be useful
-    elif len(answer) > 200 and state.get("fused_context", ""):
-        score = 92.0  # Long answer with context = high confidence
+        score = 60.0 + (len(answer) / 10)  # Answer too short to be useful
+    elif state.get("fused_context"):
+        # Dynamic scoring for valid answers
+        score = 84.0
+        
+        # 1. Reward richness and length (up to +6 points)
+        score += min(6.0, len(answer) / 250)
+        
+        # 2. Reward proper citations (up to +5 points)
+        citation_count = answer.count("[Source:")
+        score += min(5.0, citation_count * 1.25)
+        
+        # 3. Reward structured markdown (up to +3 points)
+        if "- " in answer or "1. " in answer or "**" in answer:
+            score += 2.0
+        if "[ARTIFACT:" in answer:
+            score += 1.5
+            
+        score = round(min(98.5, score), 1)
+    else:
+        score = 75.0 # fallback when context is strangely missing but answer is passed normally
     
     state["confidence"] = score
     # Only retry once if score is really low and data exists

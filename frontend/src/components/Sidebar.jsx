@@ -16,7 +16,7 @@ export default function Sidebar({
   const [showProfile, setShowProfile] = useState(false);
   const profileRef = useRef(null);
   const [showConfluenceModal, setShowConfluenceModal] = useState(false);
-  const [confluenceUrl, setConfluenceUrl] = useState('');
+  const [confluenceConfig, setConfluenceConfig] = useState({ domain: '', spaceKey: '', email: '', apiToken: '' });
   const [isConnecting, setIsConnecting] = useState(false);
   const [openDropdownId, setOpenDropdownId] = useState(null);
   const [editingChatId, setEditingChatId] = useState(null);
@@ -329,33 +329,65 @@ export default function Sidebar({
               </div>
             </div>
             <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Domain URL</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 text-xs placeholder-slate-400"
+                    placeholder="company.atlassian.net"
+                    value={confluenceConfig.domain}
+                    onChange={(e) => setConfluenceConfig(c => ({ ...c, domain: e.target.value }))}
+                  />
+                </div>
+                <div>
+                  <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Space Key</label>
+                  <input
+                    type="text"
+                    className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 text-xs placeholder-slate-400"
+                    placeholder="e.g. ENG"
+                    value={confluenceConfig.spaceKey}
+                    onChange={(e) => setConfluenceConfig(c => ({ ...c, spaceKey: e.target.value }))}
+                  />
+                </div>
+              </div>
               <div>
-                <label className="block text-[11px] font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Space URL</label>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">Atlassian Email</label>
                 <input
-                  type="text"
-                  className="w-full px-4 py-3 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 text-sm placeholder-slate-400"
-                  placeholder="https://your-domain.atlassian.net/wiki/"
-                  value={confluenceUrl}
-                  onChange={(e) => setConfluenceUrl(e.target.value)}
+                  type="email"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 text-xs placeholder-slate-400"
+                  placeholder="admin@company.com"
+                  value={confluenceConfig.email}
+                  onChange={(e) => setConfluenceConfig(c => ({ ...c, email: e.target.value }))}
+                />
+              </div>
+              <div>
+                <label className="block text-[10px] font-bold text-slate-500 uppercase tracking-widest mb-1.5 ml-1">API Token</label>
+                <input
+                  type="password"
+                  className="w-full px-3 py-2.5 bg-slate-50 border border-slate-200 rounded-xl focus:outline-none focus:ring-4 focus:ring-blue-500/20 focus:border-blue-500 transition-all text-slate-800 text-xs placeholder-slate-400"
+                  placeholder="••••••••••••••••••••••••"
+                  value={confluenceConfig.apiToken}
+                  onChange={(e) => setConfluenceConfig(c => ({ ...c, apiToken: e.target.value }))}
                 />
               </div>
               <button
                 onClick={async () => {
                   setIsConnecting(true);
                   try {
-                    await onConfluenceSync(confluenceUrl);
+                    await onConfluenceSync(confluenceConfig);
                     setShowConfluenceModal(false);
-                    setConfluenceUrl('');
+                    setConfluenceConfig({ domain: '', spaceKey: '', email: '', apiToken: '' });
                   } catch (err) {
                     console.error(err);
                   } finally {
                     setIsConnecting(false);
                   }
                 }}
-                disabled={isConnecting || !confluenceUrl}
+                disabled={isConnecting || !confluenceConfig.domain || !confluenceConfig.spaceKey || !confluenceConfig.email || !confluenceConfig.apiToken}
                 className="w-full flex justify-center items-center py-3.5 px-4 rounded-xl shadow text-sm font-bold text-white bg-blue-600 hover:bg-blue-700 transition-all disabled:opacity-50 mt-2"
               >
-                {isConnecting ? 'Syncing...' : 'Initialize Sync'}
+                {isConnecting ? 'Syncing Space...' : 'Sync Entire Space'}
               </button>
             </div>
           </div>

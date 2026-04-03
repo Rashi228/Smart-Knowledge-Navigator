@@ -14,11 +14,16 @@ export default function InsightPanel({ insights }) {
 
   return (
     <div className="w-80 bg-slate-50/80 border-l border-slate-200 flex flex-col h-full overflow-y-auto">
-      <div className="p-4 border-b border-indigo-100 bg-white sticky top-0 z-10 shadow-sm">
+      <div className="p-4 border-b border-indigo-100 bg-white sticky top-0 z-10 shadow-sm flex items-center justify-between">
         <h2 className="font-semibold text-indigo-950 flex items-center">
           <Target className="w-4 h-4 mr-2 text-indigo-500" />
-          Insight Panel
+          {insights.isHistorical ? 'Message Insight' : 'Latest Insight'}
         </h2>
+        {insights.isHistorical && (
+          <span className="px-2 py-0.5 bg-amber-50 text-amber-600 text-[10px] font-bold rounded-full border border-amber-100 uppercase tracking-tighter">
+            Pinned
+          </span>
+        )}
       </div>
 
       <div className="p-5 space-y-6">

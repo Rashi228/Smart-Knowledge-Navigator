@@ -164,8 +164,20 @@ async def query_knowledge(
         # Extract metadata from state
         citations = agent_raw_result.get("citations", [])
         sources = list(set([c["source"] for c in citations]))
+        
+        # Mode-aware source labeling
         if not sources:
-            sources = ["Knowledge Graph"]
+            if request.mode == "Online":
+                sources = ["No Web Results Found"]
+            elif request.mode == "Hybrid":
+                sources = ["No matches in Files or Web"]
+            else:
+                sources = ["No matches in Private Files"]
+        elif request.mode == "Online":
+            # Filter out any internal labels that might have leaked
+            sources = [s for s in sources if "Web:" in s]
+            if not sources:
+                sources = ["Web (Direct Fetch)"]
             
         return QueryResponse(
             answer=agent_raw_result.get("final_answer", "No answer could be generated."),
@@ -283,19 +295,24 @@ async def get_dynamic_suggestions(current_user: dict = Depends(get_current_user)
 
 @api_router.post("/confluence/sync", response_model=StatusResponse)
 async def sync_confluence(
-    request: dict, # Basic dict for URL input
+    request: dict, 
     current_user: dict = Depends(get_current_user)
 ):
-    url = request.get("url")
-    if not url:
-        raise HTTPException(status_code=400, detail="Confluence URL is required")
+    domain = request.get("domain")
+    space_key = request.get("spaceKey")
+    email = request.get("email")
+    api_token = request.get("apiToken")
     
-    # Run sync
-    result = await confluence_sync.sync_page(url, current_user['id'])
+    if not all([domain, space_key, email, api_token]):
+        raise HTTPException(status_code=400, detail="Missing Confluence configuration fields")
+    
+    # Run sync (this might take a minute depending on space size, client handles timeout or we run it async)
+    result = await confluence_sync.sync_space(domain, space_key, email, api_token, current_user['id'])
+    
     if result["status"] == "error":
         raise HTTPException(status_code=500, detail=result["message"])
     
-    return StatusResponse(status="success", message=f"Ingested {result['title']} ({result['chars']} chars)")
+    return StatusResponse(status="success", message=f"Ingested {result['title']} ({result.get('pages', 0)} pages synced)")
 
 @api_router.get("/graph/stats")
 async def get_graph_stats(current_user: dict = Depends(get_current_user)):

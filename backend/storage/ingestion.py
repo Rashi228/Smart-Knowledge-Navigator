@@ -49,12 +49,26 @@ class IngestionPipeline:
         return chunks
 
     def _extract_keywords(self, text: str) -> list[str]:
-        """Extract meaningful keywords (words > 4 chars, no stopwords) from text."""
-        stopwords = {"about", "after", "again", "before", "being", "between", "could", "during",
-                     "every", "first", "found", "given", "group", "having", "large", "local",
-                     "might", "never", "other", "place", "point", "right", "since", "still",
-                     "their", "there", "these", "think", "those", "three", "under", "using",
-                     "where", "which", "while", "would", "should", "shall", "often", "made"}
+        """Extract meaningful keywords (words >= 4 chars, no stopwords) from text."""
+        stopwords = {
+            "about","after","again","all","also","always","am","an","and","any","are","around",
+            "as","at","be","because","been","before","being","between","both","but","by","can",
+            "cannot","could","did","do","does","doing","down","during","each","either","enough",
+            "especially","etc","even","ever","every","few","first","for","found","from","further",
+            "get","give","given","go","going","good","got","group","had","has","have","having",
+            "he","her","here","hers","herself","him","himself","his","how","however","i","if",
+            "in","into","is","it","its","itself","just","keep","know","large","let","like",
+            "likely","local","long","made","make","many","may","me","might","more","most","much",
+            "must","my","myself","need","never","no","nor","not","now","of","off","often","on",
+            "once","only","or","other","our","ours","ourselves","out","over","own","part","place",
+            "point","put","right","same","see","seem","several","shall","she","should","since",
+            "so","some","still","such","take","than","that","the","their","theirs","them",
+            "themselves","then","there","these","they","thing","things","think","this","those",
+            "though","three","through","to","too","under","until","up","upon","us","use","used",
+            "using","very","want","was","way","we","well","went","were","what","when","where",
+            "whether","which","while","who","whom","whose","why","will","with","within","without",
+            "would","yes","yet","you","your","yours","yourself","yourselves"
+        }
         words = re.findall(r'\b[A-Za-z][a-z]{3,}\b', text)
         seen = set()
         keywords = []

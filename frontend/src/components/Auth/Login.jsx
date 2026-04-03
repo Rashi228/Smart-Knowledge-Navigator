@@ -1,233 +1,294 @@
 import React, { useState } from 'react';
-import { Bot, Mail, Lock, ArrowRight, ShieldCheck, Database, UploadCloud, Cpu } from 'lucide-react';
+import { Bot, Mail, Lock, ArrowRight, FileText, Database, Cpu, MessageSquare, GitBranch, Shield, Globe, Zap, Eye } from 'lucide-react';
+
+const ANIM_STYLE = `
+  @keyframes flowRight {
+    0%   { left: -6px; opacity: 0; }
+    20%  { opacity: 1; }
+    80%  { opacity: 1; }
+    100% { left: calc(100% + 6px); opacity: 0; }
+  }
+  .dot-flow  { position:absolute; top:50%; transform:translateY(-50%); width:5px; height:5px; border-radius:50%; animation: flowRight 2s ease-in-out infinite; }
+  .dot-flow-2 { animation-delay: 0.67s; }
+  .dot-flow-3 { animation-delay: 1.33s; }
+`;
+
+const STEPS = [
+  { label: 'Documents', sub: 'PDF & Web',  icon: FileText,      color: '#475569', bg: '#f1f5f9', border: '#e2e8f0' },
+  { label: 'Qdrant',    sub: 'Vector DB',  icon: Database,      color: '#1d4ed8', bg: '#dbeafe', border: '#93c5fd' },
+  { label: 'NetworkX',  sub: 'Graph',      icon: GitBranch,     color: '#0369a1', bg: '#e0f2fe', border: '#7dd3fc' },
+  { label: 'Groq LPU',  sub: 'Llama 3.3', icon: Cpu,           color: '#1e3a8a', bg: '#dbeafe', border: '#93c5fd' },
+  { label: 'Answer',    sub: 'Cited',      icon: MessageSquare, color: '#065f46', bg: '#d1fae5', border: '#6ee7b7' },
+];
+
+const FEATURES = [
+  { title: 'Knowledge Gate', desc: 'Restricts AI to only selected documents. Zero context bleed between users.', icon: Shield, accent: '#1d4ed8', accentBg: '#dbeafe', accentBorder: '#93c5fd', tag: 'Privacy' },
+  { title: 'Mind Map', desc: 'Explore knowledge as an interactive hierarchical graph.', icon: GitBranch, accent: '#0891b2', accentBg: '#cffafe', accentBorder: '#67e8f9', tag: 'Visual' },
+  { title: 'Web Search', desc: 'Live DuckDuckGo + Firecrawl when KB lacks context.', icon: Globe, accent: '#d97706', accentBg: '#fef3c7', accentBorder: '#fcd34d', tag: 'Web Intel' },
+  { title: 'Self-Healing Agents', desc: 'LangGraph retries with a new strategy if confidence is low.', icon: Zap, accent: '#059669', accentBg: '#d1fae5', accentBorder: '#6ee7b7', tag: 'Resilience' },
+  { title: 'Full Explainability', desc: 'Every answer shows source docs, retrieval strategy, and confidence score.', icon: Eye, accent: '#1e3a8a', accentBg: '#eff6ff', accentBorder: '#bfdbfe', tag: 'Transparency' },
+];
+
+/* Full-page backdrop — blobs spread across whole viewport */
+function FullBackdrop() {
+  return (
+    <div style={{ position: 'fixed', inset: 0, pointerEvents: 'none', zIndex: 0 }}>
+      <svg style={{ position: 'absolute', inset: 0, width: '100%', height: '100%' }}
+        viewBox="0 0 1400 900" preserveAspectRatio="xMidYMid slice" xmlns="http://www.w3.org/2000/svg">
+        <defs>
+          <filter id="fb1"><feGaussianBlur stdDeviation="60" /></filter>
+          <filter id="fb2"><feGaussianBlur stdDeviation="80" /></filter>
+          <filter id="fb3"><feGaussianBlur stdDeviation="70" /></filter>
+        </defs>
+        <ellipse cx="160"  cy="200" rx="260" ry="230" fill="#bfdbfe" opacity="0.45" filter="url(#fb1)" />
+        <ellipse cx="700"  cy="500" rx="300" ry="260" fill="#bae6fd" opacity="0.25" filter="url(#fb2)" />
+        <ellipse cx="1250" cy="200" rx="260" ry="220" fill="#c7d2fe" opacity="0.30" filter="url(#fb3)" />
+        <ellipse cx="1150" cy="760" rx="280" ry="240" fill="#dbeafe" opacity="0.35" filter="url(#fb1)" />
+        <ellipse cx="300"  cy="780" rx="200" ry="180" fill="#e0f2fe" opacity="0.28" filter="url(#fb3)" />
+      </svg>
+      {/* Dot grid overlay */}
+      <div style={{
+        position: 'absolute', inset: 0,
+        backgroundImage: 'radial-gradient(#cbd5e1 1px, transparent 1px)',
+        backgroundSize: '26px 26px', opacity: 0.22,
+      }} />
+    </div>
+  );
+}
+
+function Pipeline() {
+  return (
+    <div style={{ display: 'flex', alignItems: 'center', gap: 0 }}>
+      {STEPS.map((step, i) => {
+        const Icon = step.icon;
+        const isLast = i === STEPS.length - 1;
+        return (
+          <React.Fragment key={step.label}>
+            <div style={{
+              display: 'flex', flexDirection: 'column', alignItems: 'center',
+              flexShrink: 0, width: 100, padding: '14px 8px',
+              background: 'rgba(255,255,255,0.85)', backdropFilter: 'blur(12px)',
+              border: `1px solid ${step.border}`, borderRadius: 12,
+              boxShadow: '0 2px 10px rgba(0,0,0,0.06)', transition: 'transform 0.2s',
+            }}
+              onMouseEnter={e => e.currentTarget.style.transform = 'translateY(-4px)'}
+              onMouseLeave={e => e.currentTarget.style.transform = 'translateY(0)'}
+            >
+              <div style={{ width: 38, height: 38, borderRadius: 9, background: step.bg, border: `1px solid ${step.border}`, display: 'flex', alignItems: 'center', justifyContent: 'center', marginBottom: 8 }}>
+                <Icon style={{ width: 18, height: 18, color: step.color }} />
+              </div>
+              <span style={{ fontSize: 11.5, fontWeight: 700, color: '#1e293b', textAlign: 'center', lineHeight: 1.25 }}>{step.label}</span>
+              <span style={{ fontSize: 9.5, color: '#94a3b8', textAlign: 'center', marginTop: 3 }}>{step.sub}</span>
+            </div>
+            {!isLast && (
+              <div style={{ position: 'relative', width: 28, height: 24, flexShrink: 0 }}>
+                <div style={{ position: 'absolute', top: '50%', left: 0, right: 6, height: 2, background: '#cbd5e1', transform: 'translateY(-50%)' }} />
+                <svg style={{ position: 'absolute', right: 0, top: '50%', transform: 'translateY(-50%)' }} width="6" height="10" viewBox="0 0 6 10">
+                  <path d="M0 0L6 5L0 10Z" fill="#94a3b8" />
+                </svg>
+                <div className="dot-flow" style={{ background: step.color, width: 6, height: 6 }} />
+                <div className="dot-flow dot-flow-2" style={{ background: step.color, opacity: 0.55, width: 6, height: 6 }} />
+                <div className="dot-flow dot-flow-3" style={{ background: step.color, opacity: 0.30, width: 6, height: 6 }} />
+              </div>
+            )}
+          </React.Fragment>
+        );
+      })}
+    </div>
+  );
+}
+
+function FeatureCard({ f, style = {} }) {
+  const Icon = f.icon;
+  return (
+    <div style={{
+      background: 'rgba(255,255,255,0.82)', backdropFilter: 'blur(16px)',
+      border: `1px solid ${f.accentBorder}`, borderRadius: 12,
+      padding: '14px 18px', boxShadow: '0 2px 10px rgba(0,0,0,0.06)',
+      transition: 'box-shadow 0.2s, transform 0.2s', cursor: 'default',
+      ...style,
+    }}
+      onMouseEnter={e => { e.currentTarget.style.boxShadow = '0 6px 20px rgba(0,0,0,0.1)'; e.currentTarget.style.transform = 'translateY(-3px)'; }}
+      onMouseLeave={e => { e.currentTarget.style.boxShadow = '0 2px 10px rgba(0,0,0,0.06)'; e.currentTarget.style.transform = 'translateY(0)'; }}
+    >
+      <div style={{ display: 'flex', alignItems: 'center', gap: 10, marginBottom: 8 }}>
+        <div style={{ width: 32, height: 32, borderRadius: 8, background: f.accentBg, border: `1px solid ${f.accentBorder}`, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+          <Icon style={{ width: 16, height: 16, color: f.accent }} />
+        </div>
+        <span style={{ fontSize: 13, fontWeight: 700, color: '#1e293b', lineHeight: 1.2 }}>{f.title}</span>
+        <span style={{ marginLeft: 'auto', fontSize: 10, fontWeight: 600, color: f.accent, background: f.accentBg, border: `1px solid ${f.accentBorder}`, borderRadius: 5, padding: '2px 8px', whiteSpace: 'nowrap', flexShrink: 0 }}>{f.tag}</span>
+      </div>
+      <div style={{ fontSize: 12, color: '#64748b', lineHeight: 1.5 }}>{f.desc}</div>
+    </div>
+  );
+}
+
+function FeatureBento() {
+  return (
+    <div style={{ width: '100%' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: '1.2fr 0.8fr', gap: 10, marginBottom: 10 }}>
+        <FeatureCard f={FEATURES[0]} />
+        <FeatureCard f={FEATURES[1]} />
+      </div>
+      <div style={{ display: 'grid', gridTemplateColumns: '0.8fr 1.2fr', gap: 10, marginBottom: 10 }}>
+        <FeatureCard f={FEATURES[2]} />
+        <FeatureCard f={FEATURES[3]} />
+      </div>
+      <FeatureCard f={FEATURES[4]} />
+    </div>
+  );
+}
 
 export default function Login({ onLogin, onNavigateRegister }) {
-  const [email, setEmail] = useState('');
+  const [email, setEmail]       = useState('');
   const [password, setPassword] = useState('');
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+  const [loading, setLoading]   = useState(false);
+  const [error, setError]       = useState('');
 
   const handleSubmit = async (e) => {
     e.preventDefault();
-    setLoading(true);
-    setError('');
-
+    setLoading(true); setError('');
     try {
-      const formData = new URLSearchParams();
-      formData.append('username', email);
-      formData.append('password', password);
-
-      const response = await fetch('http://localhost:8000/api/v1/auth/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/x-www-form-urlencoded' },
-        body: formData
+      const fd = new URLSearchParams();
+      fd.append('username', email); fd.append('password', password);
+      const res = await fetch('http://localhost:8000/api/v1/auth/login', {
+        method: 'POST', headers: { 'Content-Type': 'application/x-www-form-urlencoded' }, body: fd,
       });
-
-      if (!response.ok) throw new Error('Invalid credentials');
-
-      const data = await response.json();
+      if (!res.ok) throw new Error('Invalid credentials. Please try again.');
+      const data = await res.json();
       localStorage.setItem('hyperrag_token', data.access_token);
       onLogin(data.access_token);
-    } catch (err) {
-      setError(err.message);
-    } finally {
-      setLoading(false);
-    }
+    } catch (err) { setError(err.message); }
+    finally { setLoading(false); }
   };
 
-  const pathD = "M 50 150 C 100 50, 200 50, 250 150 S 400 250, 450 150";
-
   return (
-    <div className="flex min-h-screen bg-slate-50 font-sans w-full">
+    <div style={{ display: 'flex', minHeight: '100vh', width: '100%', fontFamily: 'Inter, system-ui, sans-serif', overflow: 'hidden', background: '#f8fafc', position: 'relative' }}>
+      <style>{ANIM_STYLE}</style>
 
-      {/* Left Marketing Panel - Vibrant Light Flow Diagram */}
-      <div className="hidden lg:flex w-[55%] items-center justify-center p-12 relative overflow-hidden bg-white">
+      {/* ── Full-page blurred backdrop ── */}
+      <FullBackdrop />
 
-        {/* Stunning Soft Background Orbs */}
-        <div className="absolute top-[5%] left-[10%] w-[30rem] h-[30rem] bg-indigo-200/40 rounded-full mix-blend-multiply filter blur-[100px] animate-pulse"></div>
-        <div className="absolute bottom-[5%] right-[10%] w-[35rem] h-[35rem] bg-pink-200/40 rounded-full mix-blend-multiply filter blur-[100px] animate-pulse" style={{ animationDelay: '3s' }}></div>
-        <div className="absolute top-[40%] left-[40%] w-[25rem] h-[25rem] bg-cyan-100/60 rounded-full mix-blend-multiply filter blur-[90px] animate-pulse" style={{ animationDelay: '1.5s' }}></div>
-
-        <div className="w-full max-w-2xl relative z-10 flex flex-col items-center">
-
-          <div className="w-full text-center">
-            <h1 className="text-5xl font-extrabold text-slate-900 leading-tight mb-4 tracking-tight">
-              Intelligent Knowledge. <br />
-              <span className="text-transparent bg-clip-text bg-gradient-to-r from-violet-500 via-pink-500 to-amber-500">Self-Healing.</span>
+      {/* ── Left: Info panel (65%) ── */}
+      <div style={{ width: '65%', display: 'flex', alignItems: 'center', justifyContent: 'center', padding: '40px 60px', position: 'relative', zIndex: 1 }}
+        className="hidden lg:flex">
+        <div style={{ width: '100%', maxWidth: 640 }}>
+          {/* Header */}
+          <div style={{ marginBottom: 24 }}>
+            <p style={{ fontSize: 12, fontWeight: 600, color: '#1d4ed8', textTransform: 'uppercase', letterSpacing: '0.1em', marginBottom: 8 }}>
+              How it works
+            </p>
+            <h1 style={{ fontSize: 32, fontWeight: 700, color: '#0f172a', lineHeight: 1.3, marginBottom: 10 }}>
+              Smart Knowledge Navigator
             </h1>
-            <p className="text-slate-600 text-lg mb-4 font-medium max-w-lg mx-auto">
-              Experience the world's most resilient local architecture. Watch your private data flow securely.
+            <p style={{ fontSize: 14.5, color: '#64748b', lineHeight: 1.6, maxWidth: 580 }}>
+              Private, multi-agent RAG — documents embedded locally, retrieved by hybrid search, and synthesized with full source citations across isolated user contexts.
             </p>
           </div>
 
-          {/* Gorgeous Animated SVG Flow Diagram */}
-          <div className="w-full relative h-[26rem] mt-6 select-none">
+          {/* Pipeline */}
+          <Pipeline />
 
-            <svg viewBox="0 0 500 300" className="absolute inset-0 w-full h-full z-0 overflow-visible" style={{ filter: 'drop-shadow(0px 10px 15px rgba(0,0,0,0.06))' }}>
-              {/* Background Shadow Track */}
-              <path d={pathD} stroke="#f1f5f9" strokeWidth="12" fill="none" strokeLinecap="round" />
-
-              {/* Main Gradient Track */}
-              <path d={pathD} stroke="url(#flowGradient)" strokeWidth="6" fill="none" strokeLinecap="round" />
-
-              {/* Animated Data Packets traveling along the path */}
-              <circle r="6" fill="#f43f5e" className="shadow-[0_0_15px_#f43f5e]">
-                <animateMotion dur="4s" repeatCount="indefinite" path={pathD} />
-              </circle>
-              <circle r="5" fill="#3b82f6" opacity="0.8">
-                <animateMotion dur="4s" begin="1.3s" repeatCount="indefinite" path={pathD} />
-              </circle>
-              <circle r="7" fill="#8b5cf6" opacity="0.9">
-                <animateMotion dur="4s" begin="2.6s" repeatCount="indefinite" path={pathD} />
-              </circle>
-
-              <defs>
-                <linearGradient id="flowGradient" x1="0%" y1="0%" x2="100%" y2="0%">
-                  <stop offset="0%" stopColor="#8b5cf6" />
-                  <stop offset="50%" stopColor="#ec4899" />
-                  <stop offset="100%" stopColor="#06b6d4" />
-                </linearGradient>
-              </defs>
-            </svg>
-
-            {/* Nodes Positioned along the wave */}
-
-            {/* Node 1: Ingest */}
-            {/* Path starts at (50, 150) -> matches 10% x, 50% y */}
-            <div className="absolute top-[50%] left-[10%] -translate-x-1/2 -translate-y-1/2 z-10 w-20 h-20 bg-white/80 backdrop-blur-xl rounded-[1rem] shadow-xl flex flex-col items-center justify-center border border-white group hover:scale-110 transition-transform duration-300">
-              <div className="w-10 h-10 bg-gradient-to-br from-indigo-400 to-violet-600 rounded-full flex items-center justify-center shadow-lg shadow-indigo-200 mb-1.5">
-                <UploadCloud className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-700">Ingest</span>
-            </div>
-
-            {/* Node 2: Storage */}
-            {/* Path apex roughly at (150, 75) -> matches 30% x, 25% y */}
-            <div className="absolute top-[25%] left-[30%] -translate-x-1/2 -translate-y-1/2 z-10 w-20 h-20 bg-white/80 backdrop-blur-xl rounded-[1rem] shadow-xl flex flex-col items-center justify-center border border-white group hover:scale-110 transition-transform duration-300">
-              <div className="w-10 h-10 bg-gradient-to-br from-pink-400 to-rose-500 rounded-full flex items-center justify-center shadow-lg shadow-pink-200 mb-1.5">
-                <Database className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-700">Store</span>
-            </div>
-
-            {/* Node 3: Macrophage */}
-            {/* Path midpoint (250, 150) -> matches 50% x, 50% y */}
-            <div className="absolute top-[50%] left-[50%] -translate-x-1/2 -translate-y-1/2 z-10 w-20 h-20 bg-white/80 backdrop-blur-xl rounded-[1rem] shadow-xl flex flex-col items-center justify-center border border-white group hover:scale-110 transition-transform duration-300">
-              <div className="w-10 h-10 bg-gradient-to-br from-emerald-400 to-teal-500 rounded-full flex items-center justify-center shadow-lg shadow-emerald-200 mb-1.5">
-                <ShieldCheck className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-700">Immune</span>
-            </div>
-
-            {/* Node 4: Agents */}
-            {/* Path trough (350, 225) -> matches 70% x, 75% y */}
-            <div className="absolute top-[75%] left-[70%] -translate-x-1/2 -translate-y-1/2 z-10 w-20 h-20 bg-white/80 backdrop-blur-xl rounded-[1rem] shadow-xl flex flex-col items-center justify-center border border-white group hover:scale-110 transition-transform duration-300">
-              <div className="w-10 h-10 bg-gradient-to-br from-amber-400 to-orange-500 rounded-full flex items-center justify-center shadow-lg shadow-amber-200 mb-1.5">
-                <Cpu className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-700">Agents</span>
-            </div>
-
-            {/* Node 5: Output */}
-            {/* Path ends (450, 150) -> matches 90% x, 50% y */}
-            <div className="absolute top-[50%] left-[90%] -translate-x-1/2 -translate-y-1/2 z-10 w-20 h-20 bg-white/80 backdrop-blur-xl rounded-[1rem] shadow-xl flex flex-col items-center justify-center border border-white group hover:scale-110 transition-transform duration-300">
-              <div className="w-10 h-10 bg-gradient-to-br from-cyan-400 to-blue-600 rounded-full flex items-center justify-center shadow-lg shadow-cyan-200 mb-1.5">
-                <Bot className="w-5 h-5 text-white" />
-              </div>
-              <span className="text-[9px] uppercase tracking-wider font-extrabold text-slate-700">Respond</span>
-            </div>
-
-            {/* Floating Info Badges */}
-            <div className="absolute top-[16%] left-[10%] z-0 px-3 py-1.5 bg-white/90 backdrop-blur border border-pink-100 rounded-full text-[10px] font-bold text-pink-500 shadow-sm animate-pulse whitespace-nowrap hidden xl:block">
-              Qdrant & Neo4j Active
-            </div>
-
-            <div className="absolute top-[80%] left-[45%] z-0 px-3 py-1.5 bg-white/90 backdrop-blur border border-indigo-100 rounded-full text-[10px] font-bold text-indigo-500 shadow-sm animate-bounce whitespace-nowrap hidden xl:block" style={{ animationDelay: '1s' }}>
-              Verifying Logic...
-            </div>
+          {/* Divider */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, margin: '20px 0 16px' }}>
+            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
+            <span style={{ fontSize: 10.5, fontWeight: 700, color: '#94a3b8', letterSpacing: '0.1em' }}>KEY FEATURES</span>
+            <div style={{ flex: 1, height: 1, background: '#e2e8f0' }} />
           </div>
 
+          {/* Bento */}
+          <FeatureBento />
         </div>
       </div>
 
-      {/* Right Login Panel - Beautiful Vibrant Whites */}
-      <div className="w-full lg:w-[45%] flex items-center justify-center p-8 bg-white/50 relative">
-        {/* Subtle ambient blur behind form */}
-        <div className="absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-[120%] h-[120%] bg-white/50 backdrop-blur-lg z-0"></div>
+      {/* ── Right: Form card (35%) ── */}
+      <div style={{ width: '35%', display: 'flex', alignItems: 'center', justifyContent: 'flex-start', padding: '32px 40px 32px 0', position: 'relative', zIndex: 1 }}
+        className="w-full lg:w-[35%]">
+        {/* Form card */}
+        <div style={{
+          width: '100%', maxWidth: 360,
+          background: 'rgba(255,255,255,0.92)', backdropFilter: 'blur(24px)',
+          border: '1px solid rgba(226,232,240,0.8)', borderRadius: 16,
+          boxShadow: '0 12px 50px rgba(0,0,0,0.12), 0 2px 8px rgba(0,0,0,0.06)',
+          padding: '36px 32px',
+        }}>
 
-        <div className="w-full max-w-sm relative z-10">
-
-          <div className="mb-10 lg:hidden flex items-center space-x-3 justify-center">
-            <div className="w-12 h-12 bg-indigo-50 rounded-xl flex items-center justify-center border border-indigo-100">
-              <Bot className="w-6 h-6 text-indigo-600" />
+          {/* Brand */}
+          <div style={{ display: 'flex', alignItems: 'center', gap: 12, marginBottom: 28 }}>
+            <div style={{ width: 40, height: 40, background: '#1d4ed8', borderRadius: 10, display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+              <Bot style={{ width: 20, height: 20, color: '#fff' }} />
             </div>
-            <h1 className="text-2xl font-bold text-slate-800 tracking-tight">HyperRAG-X</h1>
+            <div>
+              <div style={{ fontSize: 15, fontWeight: 700, color: '#0f172a', lineHeight: 1.2 }}>HyperRAG-X</div>
+              <div style={{ fontSize: 11.5, color: '#94a3b8' }}>Smart Knowledge Navigator</div>
+            </div>
           </div>
 
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-slate-900 mb-2">Welcome Back</h2>
-            <p className="text-slate-500 font-medium">Log in to your isolated knowledge workspace.</p>
+          <div style={{ marginBottom: 24 }}>
+            <h2 style={{ fontSize: 22, fontWeight: 700, color: '#0f172a', marginBottom: 4 }}>Sign in</h2>
+            <p style={{ fontSize: 14, color: '#64748b' }}>Enter your credentials to continue.</p>
           </div>
 
           {error && (
-            <div className="mb-6 p-4 bg-rose-50 border border-rose-100 text-rose-600 text-sm rounded-xl text-center font-bold animate-in fade-in">
+            <div style={{ marginBottom: 16, padding: '12px 14px', background: '#fef2f2', border: '1px solid #fecaca', color: '#dc2626', fontSize: 13.5, borderRadius: 8 }}>
               {error}
             </div>
           )}
 
-          <form onSubmit={handleSubmit} className="space-y-6">
+          <div style={{ display: 'flex', flexDirection: 'column', gap: 16 }}>
             <div>
-              <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest mb-2 ml-1">Workspace Email</label>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Mail className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  type="text"
-                  required
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-slate-800 font-medium placeholder-slate-400 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
-                  placeholder="admin@hyperrag.local"
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Email address</label>
+              <div style={{ position: 'relative' }}>
+                <Mail style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#9ca3af', pointerEvents: 'none' }} />
+                <input type="text" required placeholder="you@company.com" value={email} onChange={e => setEmail(e.target.value)}
+                  style={{ width: '100%', paddingLeft: 38, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, color: '#1e293b', outline: 'none', boxSizing: 'border-box' }}
+                  onFocus={e => { e.target.style.borderColor = '#1d4ed8'; e.target.style.boxShadow = '0 0 0 3px rgba(29,78,216,0.12)'; }}
+                  onBlur={e => { e.target.style.borderColor = '#d1d5db'; e.target.style.boxShadow = 'none'; }}
                 />
               </div>
             </div>
 
             <div>
-              <div className="flex justify-between items-center mb-2 ml-1">
-                <label className="block text-xs font-bold text-slate-500 uppercase tracking-widest">Access Protocol</label>
-                <a href="#" className="text-xs text-indigo-500 font-bold hover:text-indigo-600 transition-colors">Emergency Reset?</a>
-              </div>
-              <div className="relative">
-                <div className="absolute inset-y-0 left-0 pl-4 flex items-center pointer-events-none">
-                  <Lock className="h-5 w-5 text-slate-400" />
-                </div>
-                <input
-                  type="password"
-                  required
-                  className="w-full pl-12 pr-4 py-3 bg-white border border-slate-200 rounded-2xl focus:outline-none focus:ring-4 focus:ring-indigo-500/10 focus:border-indigo-500 transition-all text-slate-800 font-medium placeholder-slate-400 shadow-[0_2px_10px_rgba(0,0,0,0.02)]"
-                  placeholder="••••••••"
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
+              <label style={{ display: 'block', fontSize: 13, fontWeight: 500, color: '#374151', marginBottom: 6 }}>Password</label>
+              <div style={{ position: 'relative' }}>
+                <Lock style={{ position: 'absolute', left: 12, top: '50%', transform: 'translateY(-50%)', width: 16, height: 16, color: '#9ca3af', pointerEvents: 'none' }} />
+                <input type="password" required placeholder="••••••••" value={password} onChange={e => setPassword(e.target.value)}
+                  style={{ width: '100%', paddingLeft: 38, paddingRight: 12, paddingTop: 10, paddingBottom: 10, background: '#fff', border: '1px solid #d1d5db', borderRadius: 8, fontSize: 14, color: '#1e293b', outline: 'none', boxSizing: 'border-box' }}
+                  onFocus={e => { e.target.style.borderColor = '#1d4ed8'; e.target.style.boxShadow = '0 0 0 3px rgba(29,78,216,0.12)'; }}
+                  onBlur={e => { e.target.style.borderColor = '#d1d5db'; e.target.style.boxShadow = 'none'; }}
                 />
               </div>
             </div>
 
-            <button
-              type="submit"
-              disabled={loading}
-              className="w-full flex justify-center items-center py-3.5 px-4 border border-transparent rounded-2xl shadow-[0_8px_25px_-8px_rgba(99,102,241,0.6)] text-base font-bold text-white bg-indigo-600 hover:bg-indigo-700 hover:-translate-y-0.5 focus:outline-none focus:ring-4 focus:ring-offset-2 focus:ring-indigo-500 transition-all disabled:opacity-50 disabled:hover:translate-y-0 mt-8 group"
+            <button type="button" onClick={handleSubmit} disabled={loading}
+              style={{ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '100%', padding: '10px 18px', background: '#1d4ed8', color: '#fff', fontSize: 14.5, fontWeight: 600, borderRadius: 8, border: 'none', cursor: loading ? 'not-allowed' : 'pointer', transition: 'background 0.15s', opacity: loading ? 0.7 : 1, marginTop: 4 }}
+              onMouseEnter={e => { if (!loading) e.currentTarget.style.background = '#1e40af'; }}
+              onMouseLeave={e => { if (!loading) e.currentTarget.style.background = '#1d4ed8'; }}
             >
-              {loading ? 'Authenticating...' : 'Initialize Workspace'}
-              {!loading && <ArrowRight className="ml-2 w-5 h-5 group-hover:translate-x-1 transition-transform" />}
+              {loading
+                ? <><svg style={{ marginRight: 8, width: 16, height: 16, animation: 'spin 1s linear infinite' }} fill="none" viewBox="0 0 24 24"><circle style={{ opacity: 0.25 }} cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/><path style={{ opacity: 0.75 }} fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4z"/></svg>Signing in...</>
+                : <>Sign in <ArrowRight style={{ marginLeft: 6, width: 15, height: 15 }} /></>
+              }
             </button>
-          </form>
+          </div>
 
-          <div className="mt-10 text-center text-sm font-medium">
-            <span className="text-slate-500">New network entity node? </span>
-            <button onClick={onNavigateRegister} className="font-bold text-indigo-600 hover:text-indigo-700 underline decoration-indigo-200 underline-offset-4 cursor-pointer hover:decoration-indigo-400 transition-colors ml-1">
-              Build System
+          <p style={{ marginTop: 20, fontSize: 14, color: '#64748b', textAlign: 'center' }}>
+            Don't have an account?{' '}
+            <button onClick={onNavigateRegister} style={{ fontWeight: 600, color: '#1d4ed8', background: 'none', border: 'none', cursor: 'pointer', padding: 0, fontSize: 14 }}>
+              Create one
             </button>
+          </p>
+
+          <div style={{ marginTop: 24, paddingTop: 18, borderTop: '1px solid #f1f5f9', display: 'flex', alignItems: 'center', justifyContent: 'center', gap: 16 }}>
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+              <Shield style={{ width: 14, height: 14 }} />
+              <span style={{ fontSize: 12 }}>Supabase Auth</span>
+            </div>
+            <div style={{ width: 1, height: 12, background: '#e2e8f0' }} />
+            <div style={{ display: 'flex', alignItems: 'center', gap: 6, color: '#94a3b8' }}>
+              <Database style={{ width: 14, height: 14 }} />
+              <span style={{ fontSize: 12 }}>Per-user isolation</span>
+            </div>
           </div>
 
         </div>
