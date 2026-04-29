@@ -37,7 +37,7 @@ HyperRAG-X is a high-performance, enterprise-grade hybrid Retrieval-Augmented Ge
 
   ## Architecture Overview
 
-![Technical Architecture](./architecture.png)
+![Technical Architecture](./architecture.jpeg)
 
 
 ## API Endpoints
