@@ -2,6 +2,10 @@
 
 HyperRAG-X is a high-performance, enterprise-grade hybrid Retrieval-Augmented Generation (RAG) platform. It combines a multi-agent orchestration layer with a tripartite storage architecture (Vector, Graph, and Memory) to deliver near-instant, verifiable knowledge synthesis and management.
 
+## Demo Video
+
+[![Watch the demo](https://img.youtube.com/vi/NV73LcNdKgk/0.jpg)](https://www.youtube.com/watch?v=NV73LcNdKgk)
+
 ## Key Features
 
 * **Near-Instant Reasoning:** Powered by Groq Cloud (Llama 3.3 70B and 3.1 8B) for high-speed inference and reasoning.
@@ -30,6 +34,11 @@ HyperRAG-X is a high-performance, enterprise-grade hybrid Retrieval-Augmented Ge
 * **Animations:** Framer Motion
 * **Visualizations:** React Force Graph 2D, D3-Force, Mermaid (Markdown visualization)
 * **Icons:** Lucide-React
+
+  ## Architecture Overview
+
+![Technical Architecture](./architecture.jpeg)
+
 
 ## API Endpoints
 
@@ -118,3 +127,5 @@ The FastAPI backend exposes the following endpoints (prefixed by `/api/v1` for c
     ```bash
     npm run dev
     ```
+
+
