@@ -106,7 +106,7 @@ export default function App() {
   const fetchUploadedFiles = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:8000/api/v1/documents', {
+      const res = await fetch(${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/documents, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.status === 401) { handleLogout(); return; }
@@ -122,7 +122,7 @@ export default function App() {
   const fetchSuggestions = async () => {
     if (!token) return;
     try {
-      const res = await fetch('http://localhost:8000/api/v1/suggestions', {
+      const res = await fetch(${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/suggestions, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (res.status === 401) { handleLogout(); return; }
@@ -139,7 +139,7 @@ export default function App() {
     formData.append('file', file);
     setIsUploading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/upload', {
+      const response = await fetch(${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/upload, {
         method: 'POST',
         headers: { 'Authorization': `Bearer ${token}` },
         body: formData
@@ -161,7 +161,7 @@ export default function App() {
     if (!config || !config.domain) return;
     setIsUploading(true);
     try {
-      const response = await fetch('http://localhost:8000/api/v1/confluence/sync', {
+      const response = await fetch(${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/confluence/sync, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -226,7 +226,7 @@ export default function App() {
     abortControllerRef.current = new AbortController();
 
     try {
-      const response = await fetch('http://localhost:8000/api/v1/query', {
+      const response = await fetch(${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/query, {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -273,7 +273,7 @@ export default function App() {
     const fetchUser = async () => {
       if (!token) { setUser(null); return; }
       try {
-        const res = await fetch('http://localhost:8000/api/v1/auth/me', {
+        const res = await fetch(${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/auth/me, {
           headers: { 'Authorization': `Bearer ${token}` }
         });
         if (res.ok) { setUser(await res.json()); }

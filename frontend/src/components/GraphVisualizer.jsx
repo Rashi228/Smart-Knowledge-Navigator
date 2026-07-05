@@ -15,7 +15,7 @@ export default function GraphVisualizer({ onClose }) {
     setLoading(true);
     try {
       const token = localStorage.getItem('hyperrag_token');
-      const response = await fetch('http://localhost:8000/api/v1/graph/data', {
+      const response = await fetch(${import.meta.env.VITE_API_URL || 'http://localhost:8000'}/api/v1/graph/data, {
         headers: { 'Authorization': `Bearer ${token}` }
       });
       if (response.ok) {
