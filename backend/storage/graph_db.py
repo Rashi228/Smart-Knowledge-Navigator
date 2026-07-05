@@ -3,10 +3,9 @@ import networkx as nx
 import json
 import os
 from typing import List, Dict
+from db.supabase_client import supabase
 
 logger = logging.getLogger(__name__)
-
-GRAPH_FILE = os.path.join(os.path.dirname(__file__), "..", "graph_db.json")
 
 class GraphDBClient:
     def __init__(self):
@@ -16,29 +15,37 @@ class GraphDBClient:
         logger.info(f"Connected to Graph Database (NetworkX with {len(self.graph.nodes)} nodes)")
 
     def _load(self):
-        if os.path.exists(GRAPH_FILE):
-            try:
-                with open(GRAPH_FILE, "r", encoding="utf-8") as f:
-                    data = json.load(f)
-                    self.graph = nx.node_link_graph(data, multigraph=True)
-                logger.info(f"GraphDB: Loaded {len(self.graph.nodes)} nodes and {len(self.graph.edges)} edges from disk.")
-            except Exception as e:
-                logger.warning(f"Could not load graph from disk: {e}")
-
-    def _save(self):
         try:
-            data = nx.node_link_data(self.graph)
-            with open(GRAPH_FILE, "w", encoding="utf-8") as f:
-                json.dump(data, f, ensure_ascii=False)
+            response = supabase.table("graph_edges").select("*").execute()
+            if response.data:
+                for row in response.data:
+                    self.graph.add_node(row["source"])
+                    self.graph.add_node(row["target"])
+                    # Parse metadata if it exists, otherwise empty dict
+                    meta = row.get("metadata", {}) or {}
+                    self.graph.add_edge(row["source"], row["target"], relation=row["relation"], **meta)
+            logger.info(f"GraphDB: Loaded {len(self.graph.nodes)} nodes and {len(self.graph.edges)} edges from Supabase.")
         except Exception as e:
-            logger.warning(f"Could not save graph to disk: {e}")
+            logger.warning(f"Could not load graph from Supabase: {e}")
 
     def add_relationship(self, entity1: str, relationship: str, entity2: str, metadata: dict = None):
         """Adds a triple to the graph database."""
         self.graph.add_node(entity1)
         self.graph.add_node(entity2)
         self.graph.add_edge(entity1, entity2, relation=relationship, **(metadata or {}))
-        self._save() # Auto-save to disk
+        
+        # Save to Supabase
+        try:
+            edge_data = {
+                "source": entity1,
+                "target": entity2,
+                "relation": relationship,
+                "metadata": metadata or {}
+            }
+            supabase.table("graph_edges").insert(edge_data).execute()
+        except Exception as e:
+            logger.warning(f"Could not save graph edge to Supabase: {e}")
+            
         logger.info(f"Added Graph Edge: {entity1} -[{relationship}]-> {entity2}")
 
     def get_context_for_entity(self, entity: str, depth: int = 2, file_filter: List[str] = None) -> List[Dict]:

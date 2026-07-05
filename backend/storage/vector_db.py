@@ -8,15 +8,28 @@ logger = logging.getLogger(__name__)
 
 class VectorDBClient:
     def __init__(self, collection_name: str = "hyperrag_collection"):
-        # Use local disk path so vectors persist across backend restarts
+        import os
+        from dotenv import load_dotenv
+        load_dotenv()
+        
+        qdrant_url = os.getenv("QDRANT_URL")
+        qdrant_api_key = os.getenv("QDRANT_API_KEY")
+        
         try:
-            import os
-            db_path = os.path.join(os.path.dirname(__file__), "..", "qdrant_data")
-            os.makedirs(db_path, exist_ok=True)
-            self.client = QdrantClient(path=db_path)  # Disk-persisted local storage
+            if qdrant_url and qdrant_api_key:
+                logger.info(f"Connecting to Qdrant Cloud at {qdrant_url}")
+                self.client = QdrantClient(
+                    url=qdrant_url, 
+                    api_key=qdrant_api_key
+                )
+            else:
+                logger.info("Connecting to Vector Database (Mocked Qdrant on local disk)")
+                db_path = os.path.join(os.path.dirname(__file__), "..", "qdrant_data")
+                os.makedirs(db_path, exist_ok=True)
+                self.client = QdrantClient(path=db_path)
+            
             self.collection_name = collection_name
             self._init_collection()
-            logger.info("Connected to Vector Database (Mocked Qdrant in-memory)")
         except Exception as e:
             logger.error(f"Failed to connect to Vector DB: {e}")
             self.client = None

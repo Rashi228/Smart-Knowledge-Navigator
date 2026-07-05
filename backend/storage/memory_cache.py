@@ -2,39 +2,35 @@ import logging
 import json
 import os
 from typing import Dict
+from db.supabase_client import supabase
 
 logger = logging.getLogger(__name__)
 
-CACHE_FILE = os.path.join(os.path.dirname(__file__), "..", "memory_cache.json")
-
 class DirectMemoryCache:
     """
-    A lightweight memory cache that persists to disk so data survives backend restarts.
-    Used by the AdaptiveRetrievalAgent to bypass Qdrant for small documents.
+    A lightweight memory cache that persists to Supabase Postgres so data survives backend restarts.
     """
     def __init__(self):
         self.cache: Dict[str, str] = {}
         self._load()
 
     def _load(self):
-        if os.path.exists(CACHE_FILE):
-            try:
-                with open(CACHE_FILE, "r", encoding="utf-8") as f:
-                    self.cache = json.load(f)
-                logger.info(f"DirectMemoryCache: Loaded {len(self.cache)} files from disk.")
-            except Exception as e:
-                logger.warning(f"Could not load memory cache from disk: {e}")
-
-    def _save(self):
         try:
-            with open(CACHE_FILE, "w", encoding="utf-8") as f:
-                json.dump(self.cache, f, ensure_ascii=False)
+            # Fetch all from Supabase
+            response = supabase.table("memory_cache").select("*").execute()
+            if response.data:
+                for row in response.data:
+                    self.cache[row["filename"]] = row["content"]
+            logger.info(f"DirectMemoryCache: Loaded {len(self.cache)} files from Supabase.")
         except Exception as e:
-            logger.warning(f"Could not save memory cache to disk: {e}")
+            logger.warning(f"Could not load memory cache from Supabase: {e}")
 
     def store_file(self, filename: str, content: str):
         self.cache[filename] = content
-        self._save()
+        try:
+            supabase.table("memory_cache").upsert({"filename": filename, "content": content}).execute()
+        except Exception as e:
+            logger.warning(f"Could not save memory cache to Supabase: {e}")
         logger.info(f"Stored {filename} entirely in DirectMemoryCache (Bypassing Vector DB).")
 
     def get_context(self, file_filter: list[str] = None) -> list[dict]:
@@ -46,7 +42,10 @@ class DirectMemoryCache:
     def delete_file(self, filename: str):
         if filename in self.cache:
             del self.cache[filename]
-            self._save()
+            try:
+                supabase.table("memory_cache").delete().eq("filename", filename).execute()
+            except Exception as e:
+                logger.warning(f"Could not delete from memory cache in Supabase: {e}")
             logger.info(f"Deleted {filename} entirely from DirectMemoryCache.")
 
 memory_cache = DirectMemoryCache()
